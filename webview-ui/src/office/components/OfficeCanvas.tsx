@@ -7,7 +7,6 @@ import { renderFrame } from '../engine/renderer.js'
 import { TILE_SIZE, MAP_COLS, MAP_ROWS, EditTool } from '../types.js'
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js'
 import { canPlaceFurniture } from '../editor/editorActions.js'
-import { getColorizedSprite } from '../colorize.js'
 import { vscode } from '../../vscodeApi.js'
 
 interface OfficeCanvasProps {
@@ -17,6 +16,7 @@ interface OfficeCanvasProps {
   isEditMode: boolean
   editorState: EditorState
   onEditorTileAction: (col: number, row: number) => void
+  onEditorSelectionChange: () => void
   onDeleteSelected: () => void
   onRotateSelected: () => void
   onDragMove: (uid: string, newCol: number, newRow: number) => void
@@ -26,7 +26,7 @@ interface OfficeCanvasProps {
   panRef: React.MutableRefObject<{ x: number; y: number }>
 }
 
-export function OfficeCanvas({ officeState, onHover, onClick, isEditMode, editorState, onEditorTileAction, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
+export function OfficeCanvas({ officeState, onHover, onClick, isEditMode, editorState, onEditorTileAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const offsetRef = useRef({ x: 0, y: 0 })
@@ -94,17 +94,7 @@ export function OfficeCanvas({ officeState, onHover, onClick, isEditMode, editor
           if (editorState.activeTool === EditTool.FURNITURE_PLACE && editorState.ghostCol >= 0) {
             const entry = getCatalogEntry(editorState.selectedFurnitureType)
             if (entry) {
-              // Colorize ghost if furniture is colorEditable
-              if (entry.colorEditable) {
-                const fc = editorState.furnitureColor
-                editorRender.ghostSprite = getColorizedSprite(
-                  `ghost-${entry.type}-${fc.h}-${fc.s}-${fc.b}-${fc.c}`,
-                  entry.sprite,
-                  fc,
-                )
-              } else {
-                editorRender.ghostSprite = entry.sprite
-              }
+              editorRender.ghostSprite = entry.sprite
               editorRender.ghostValid = canPlaceFurniture(
                 officeState.getLayout(),
                 editorState.selectedFurnitureType,
@@ -430,6 +420,7 @@ export function OfficeCanvas({ officeState, onHover, onClick, isEditMode, editor
         } else {
           // Clicked empty space — deselect
           editorState.clearSelection()
+          onEditorSelectionChange()
         }
       }
 
@@ -439,7 +430,7 @@ export function OfficeCanvas({ officeState, onHover, onClick, isEditMode, editor
         onEditorTileAction(tile.col, tile.row)
       }
     },
-    [officeState, isEditMode, editorState, screenToTile, screenToWorld, onEditorTileAction, onDeleteSelected, onRotateSelected, hitTestDeleteButton, hitTestRotateButton, panRef],
+    [officeState, isEditMode, editorState, screenToTile, screenToWorld, onEditorTileAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, hitTestDeleteButton, hitTestRotateButton, panRef],
   )
 
   const handleMouseUp = useCallback(
@@ -480,6 +471,7 @@ export function OfficeCanvas({ officeState, onHover, onClick, isEditMode, editor
           }
         }
         editorState.clearDrag()
+        onEditorSelectionChange()
         const canvas = canvasRef.current
         if (canvas) canvas.style.cursor = 'crosshair'
         return
@@ -487,7 +479,7 @@ export function OfficeCanvas({ officeState, onHover, onClick, isEditMode, editor
 
       editorState.isDragging = false
     },
-    [editorState, isEditMode, officeState, onDragMove],
+    [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],
   )
 
   const handleClick = useCallback(

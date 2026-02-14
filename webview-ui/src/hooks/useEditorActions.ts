@@ -22,7 +22,7 @@ export interface EditorActions {
   handleToolChange: (tool: EditToolType) => void
   handleTileTypeChange: (type: TileTypeVal) => void
   handleFloorColorChange: (color: FloorColor) => void
-  handleFurnitureColorChange: (color: FloorColor) => void
+  handleSelectedFurnitureColorChange: (color: FloorColor | null) => void
   handleFurnitureTypeChange: (type: string) => void // FurnitureType enum or asset ID
   handleDeleteSelected: () => void
   handleRotateSelected: () => void
@@ -32,6 +32,7 @@ export interface EditorActions {
   handleSave: () => void
   handleZoomChange: (zoom: number) => void
   handleEditorTileAction: (col: number, row: number) => void
+  handleEditorSelectionChange: () => void
   handleDragMove: (uid: string, newCol: number, newRow: number) => void
 }
 
@@ -99,6 +100,7 @@ export function useEditorActions(
     editorState.clearSelection()
     editorState.clearGhost()
     editorState.clearDrag()
+    colorEditUidRef.current = null
     setEditorTick((n) => n + 1)
   }, [editorState])
 
@@ -112,10 +114,35 @@ export function useEditorActions(
     setEditorTick((n) => n + 1)
   }, [editorState])
 
-  const handleFurnitureColorChange = useCallback((color: FloorColor) => {
-    editorState.furnitureColor = color
+  // Track which uid we've already pushed undo for during color editing
+  // so dragging sliders doesn't create N undo entries
+  const colorEditUidRef = useRef<string | null>(null)
+
+  const handleSelectedFurnitureColorChange = useCallback((color: FloorColor | null) => {
+    const uid = editorState.selectedFurnitureUid
+    if (!uid) return
+    const os = getOfficeState()
+    const layout = os.getLayout()
+
+    // Push undo only once per selection (first slider touch)
+    if (colorEditUidRef.current !== uid) {
+      editorState.pushUndo(layout)
+      editorState.clearRedo()
+      colorEditUidRef.current = uid
+    }
+
+    // Update color on the placed furniture item (null removes color)
+    const newFurniture = layout.furniture.map((f) =>
+      f.uid === uid ? { ...f, color: color ?? undefined } : f,
+    )
+    const newLayout = { ...layout, furniture: newFurniture }
+
+    editorState.isDirty = true
+    setIsDirty(true)
+    os.rebuildFromLayout(newLayout)
+    saveLayout(newLayout)
     setEditorTick((n) => n + 1)
-  }, [editorState])
+  }, [getOfficeState, editorState, saveLayout])
 
   const handleFurnitureTypeChange = useCallback((type: string) => {
     // Clicking the same item deselects it (no ghost), stays in furniture mode
@@ -136,6 +163,7 @@ export function useEditorActions(
     if (newLayout !== os.getLayout()) {
       applyEdit(newLayout)
       editorState.clearSelection()
+      colorEditUidRef.current = null
     }
   }, [getOfficeState, editorState, applyEdit])
 
@@ -207,6 +235,12 @@ export function useEditorActions(
     setIsDirty(false)
   }, [getOfficeState, editorState])
 
+  // Notify React that imperative editor selection changed (e.g., from OfficeCanvas mouseUp)
+  const handleEditorSelectionChange = useCallback(() => {
+    colorEditUidRef.current = null
+    setEditorTick((n) => n + 1)
+  }, [])
+
   const handleZoomChange = useCallback((newZoom: number) => {
     setZoom(Math.max(1, Math.min(10, newZoom)))
   }, [])
@@ -242,18 +276,13 @@ export function useEditorActions(
         setEditorTick((n) => n + 1)
       } else if (canPlaceFurniture(layout, type, col, row)) {
         const uid = `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-        const entry = getCatalogEntry(type)
-        const item: import('../office/types.js').PlacedFurniture = { uid, type, col, row }
-        if (entry?.colorEditable) {
-          item.color = { ...editorState.furnitureColor }
-        }
-        const newLayout = placeFurniture(layout, item)
+        const newLayout = placeFurniture(layout, { uid, type, col, row })
         if (newLayout !== layout) {
           applyEdit(newLayout)
         }
       }
     } else if (editorState.activeTool === EditTool.FURNITURE_PICK) {
-      // Find furniture at clicked tile, copy its type + color
+      // Find furniture at clicked tile, copy its type for placement
       const hit = layout.furniture.find((f) => {
         const entry = getCatalogEntry(f.type)
         if (!entry) return false
@@ -261,10 +290,6 @@ export function useEditorActions(
       })
       if (hit) {
         editorState.selectedFurnitureType = hit.type
-        const entry = getCatalogEntry(hit.type)
-        if (entry?.colorEditable && hit.color) {
-          editorState.furnitureColor = { ...hit.color }
-        }
         editorState.activeTool = EditTool.FURNITURE_PLACE
       }
       setEditorTick((n) => n + 1)
@@ -307,7 +332,7 @@ export function useEditorActions(
     handleToolChange,
     handleTileTypeChange,
     handleFloorColorChange,
-    handleFurnitureColorChange,
+    handleSelectedFurnitureColorChange,
     handleFurnitureTypeChange,
     handleDeleteSelected,
     handleRotateSelected,
@@ -317,6 +342,7 @@ export function useEditorActions(
     handleSave,
     handleZoomChange,
     handleEditorTileAction,
+    handleEditorSelectionChange,
     handleDragMove,
   }
 }

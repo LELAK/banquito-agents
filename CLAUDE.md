@@ -101,15 +101,15 @@ JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Pro
 
 ## Layout Editor
 
-Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Furniture place, Furniture pick (eyedropper for furniture type+color), Eyedropper (floor).
+Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Furniture place, Furniture pick (eyedropper for furniture type), Eyedropper (floor).
 
 **Floor**: 7 patterns from `floors.png` (grayscale 16×16), colorizable via HSBC sliders (Photoshop Colorize). Color baked per-tile on paint. Wall button. Eyedropper picks pattern+color.
 
-**Furniture**: Ghost preview (green/red validity). R key rotates. Drag-to-move in SELECT. Delete button (red X) + rotate button (blue arrow) on selected items. `colorEditable` items get HSBC color sliders; color stored per-item in `PlacedFurniture.color`. Pick tool copies type+color from placed item. Surface items preferred when clicking stacked furniture.
+**Furniture**: Ghost preview (green/red validity). R key rotates. Drag-to-move in SELECT. Delete button (red X) + rotate button (blue arrow) on selected items. Any selected furniture shows HSBC color sliders (Color toggle + Clear button); color stored per-item in `PlacedFurniture.color?`. Single undo entry per color-editing session (tracked by `colorEditUidRef`). Pick tool copies type from placed item. Surface items preferred when clicking stacked furniture.
 
 **Undo/Redo**: 50-level, Ctrl+Z/Y. EditActionBar (top-center when dirty): Undo, Redo, Save, Reset.
 
-**Multi-stage Esc**: exit pick mode → deselect catalog → close tool tab → deselect furniture → close editor.
+**Multi-stage Esc**: exit furniture pick → deselect catalog → close tool tab → deselect furniture → close editor.
 
 **Layout model**: `{ version: 1, cols, rows, tiles: TileType[], furniture: PlacedFurniture[], tileColors?: FloorColor[] }`. Persisted via debounced saveLayout message.
 
@@ -123,7 +123,7 @@ Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Furniture plac
 
 **Surface placement**: `canPlaceOnSurfaces?: boolean` on `FurnitureCatalogEntry` — items like laptops, monitors, mugs can overlap with all tiles of `isDesk` furniture. `canPlaceFurniture()` builds a desk-tile set and excludes it from collision checks for surface items. Z-sort fix: `layoutToFurnitureInstances()` pre-computes desk zY per tile; surface items get `zY = max(spriteBottom, deskZY + 0.5)` so they render in front of the desk. Set via asset-manager.html "Can Place On Surfaces" checkbox. Exported through `5-export-assets.ts` → `furniture-catalog.json`.
 
-**Colorize module**: Shared `colorize.ts` — Photoshop-style Colorize (grayscale → luminance → contrast → brightness → HSL). Used by floor tiles and colorEditable furniture. Generic cache keyed by arbitrary string.
+**Colorize module**: Shared `colorize.ts` — Photoshop-style Colorize (grayscale → luminance → contrast → brightness → HSL). Used by floor tiles and furniture color tinting. Generic `Map<string, SpriteData>` cache keyed by arbitrary string. `layoutToFurnitureInstances()` colorizes sprites when `PlacedFurniture.color` is set.
 
 **Floor tiles**: `floors.png` (112×16, 7 patterns). Cached by (pattern, h, s, b, c). Migration: old layouts auto-mapped to new patterns.
 
@@ -142,6 +142,7 @@ Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Furniture plac
 - `--output-format stream-json` needs non-TTY stdin — can't use with VS Code terminals
 - Hook-based IPC failed (hooks captured at startup, env vars don't propagate). JSONL watching works
 - PNG→SpriteData: pngjs for RGBA buffer, alpha threshold 128
+- OfficeCanvas selection changes are imperative (`editorState.selectedFurnitureUid`); must call `onEditorSelectionChange()` to trigger React re-render for toolbar
 
 ## Build & Dev
 

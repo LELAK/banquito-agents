@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { EditTool, TileType } from '../types.js'
 import type { TileType as TileTypeVal, FloorColor } from '../types.js'
-import { getCatalogByCategory, getCatalogEntry, buildDynamicCatalog, getActiveCategories } from '../layout/furnitureCatalog.js'
+import { getCatalogByCategory, buildDynamicCatalog, getActiveCategories } from '../layout/furnitureCatalog.js'
 import type { FurnitureCategory, LoadedAssetData } from '../layout/furnitureCatalog.js'
 import { getCachedSprite } from '../sprites/spriteCache.js'
 import { getColorizedFloorSprite, getFloorPatternCount, hasFloorSprites } from '../floorTiles.js'
-import { getColorizedSprite } from '../colorize.js'
 
 const btnStyle: React.CSSProperties = {
   padding: '3px 8px',
@@ -45,12 +44,13 @@ interface EditorToolbarProps {
   activeTool: EditTool
   selectedTileType: TileTypeVal
   selectedFurnitureType: string
+  selectedFurnitureUid: string | null
+  selectedFurnitureColor: FloorColor | null
   floorColor: FloorColor
-  furnitureColor: FloorColor
   onToolChange: (tool: EditTool) => void
   onTileTypeChange: (type: TileTypeVal) => void
   onFloorColorChange: (color: FloorColor) => void
-  onFurnitureColorChange: (color: FloorColor) => void
+  onSelectedFurnitureColorChange: (color: FloorColor | null) => void
   onFurnitureTypeChange: (type: string) => void
   loadedAssets?: LoadedAssetData
 }
@@ -135,16 +135,19 @@ function ColorSlider({ label, value, min, max, onChange }: {
   )
 }
 
+const DEFAULT_FURNITURE_COLOR: FloorColor = { h: 0, s: 50, b: 0, c: 0 }
+
 export function EditorToolbar({
   activeTool,
   selectedTileType,
   selectedFurnitureType,
+  selectedFurnitureUid,
+  selectedFurnitureColor,
   floorColor,
-  furnitureColor,
   onToolChange,
   onTileTypeChange,
   onFloorColorChange,
-  onFurnitureColorChange,
+  onSelectedFurnitureColorChange,
   onFurnitureTypeChange,
   loadedAssets,
 }: EditorToolbarProps) {
@@ -179,9 +182,11 @@ export function EditorToolbar({
     onFloorColorChange({ ...floorColor, [key]: value })
   }, [floorColor, onFloorColorChange])
 
-  const handleFurnitureColorChange = useCallback((key: keyof FloorColor, value: number) => {
-    onFurnitureColorChange({ ...furnitureColor, [key]: value })
-  }, [furnitureColor, onFurnitureColorChange])
+  // For selected furniture: use existing color or default
+  const effectiveColor = selectedFurnitureColor ?? DEFAULT_FURNITURE_COLOR
+  const handleSelFurnColorChange = useCallback((key: keyof FloorColor, value: number) => {
+    onSelectedFurnitureColorChange({ ...effectiveColor, [key]: value })
+  }, [effectiveColor, onSelectedFurnitureColorChange])
 
   const categoryItems = getCatalogByCategory(activeCategory)
 
@@ -319,55 +324,15 @@ export function EditorToolbar({
             <button
               style={activeTool === EditTool.FURNITURE_PICK ? activeBtnStyle : btnStyle}
               onClick={() => onToolChange(EditTool.FURNITURE_PICK)}
-              title="Pick furniture type + color from placed item"
+              title="Pick furniture type from placed item"
             >
               Pick
             </button>
           </div>
-          {/* Furniture color controls (between tabs and carousel) */}
-          {(() => {
-            const selEntry = selectedFurnitureType ? getCatalogEntry(selectedFurnitureType) : undefined
-            if (!selEntry?.colorEditable) return null
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: 3 }}>
-                <button
-                  style={showFurnitureColor ? activeBtnStyle : btnStyle}
-                  onClick={() => setShowFurnitureColor((v) => !v)}
-                  title="Adjust furniture color"
-                >
-                  Color
-                </button>
-                {showFurnitureColor && (
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 3,
-                    padding: '4px 6px',
-                    background: 'rgba(20,20,36,0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: 3,
-                  }}>
-                    <ColorSlider label="H" value={furnitureColor.h} min={0} max={360} onChange={(v) => handleFurnitureColorChange('h', v)} />
-                    <ColorSlider label="S" value={furnitureColor.s} min={0} max={100} onChange={(v) => handleFurnitureColorChange('s', v)} />
-                    <ColorSlider label="B" value={furnitureColor.b} min={-100} max={100} onChange={(v) => handleFurnitureColorChange('b', v)} />
-                    <ColorSlider label="C" value={furnitureColor.c} min={-100} max={100} onChange={(v) => handleFurnitureColorChange('c', v)} />
-                  </div>
-                )}
-              </div>
-            )
-          })()}
-          {/* Furniture items — at the top, single-row horizontal carousel at 2x */}
+          {/* Furniture items — single-row horizontal carousel at 2x */}
           <div style={{ display: 'flex', gap: 4, overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 2 }}>
             {categoryItems.map((entry) => {
-              // Colorize thumbnail if this entry is colorEditable and currently selected
-              const displaySprite = (entry.colorEditable && selectedFurnitureType === entry.type)
-                ? getColorizedSprite(
-                    `thumb-${entry.type}-${furnitureColor.h}-${furnitureColor.s}-${furnitureColor.b}-${furnitureColor.c}`,
-                    entry.sprite,
-                    furnitureColor,
-                  )
-                : entry.sprite
-              const cached = getCachedSprite(displaySprite, 2)
+              const cached = getCachedSprite(entry.sprite, 2)
               const isSelected = selectedFurnitureType === entry.type
               return (
                 <button
@@ -409,6 +374,46 @@ export function EditorToolbar({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Selected furniture color panel — shows when any placed furniture item is selected */}
+      {selectedFurnitureUid && (
+        <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: 3 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <button
+              style={showFurnitureColor ? activeBtnStyle : btnStyle}
+              onClick={() => setShowFurnitureColor((v) => !v)}
+              title="Adjust selected furniture color"
+            >
+              Color
+            </button>
+            {selectedFurnitureColor && (
+              <button
+                style={{ ...btnStyle, fontSize: '10px', padding: '2px 6px' }}
+                onClick={() => onSelectedFurnitureColorChange(null)}
+                title="Remove color (restore original)"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {showFurnitureColor && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 3,
+              padding: '4px 6px',
+              background: 'rgba(20,20,36,0.8)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: 3,
+            }}>
+              <ColorSlider label="H" value={effectiveColor.h} min={0} max={360} onChange={(v) => handleSelFurnColorChange('h', v)} />
+              <ColorSlider label="S" value={effectiveColor.s} min={0} max={100} onChange={(v) => handleSelFurnColorChange('s', v)} />
+              <ColorSlider label="B" value={effectiveColor.b} min={-100} max={100} onChange={(v) => handleSelFurnColorChange('b', v)} />
+              <ColorSlider label="C" value={effectiveColor.c} min={-100} max={100} onChange={(v) => handleSelFurnColorChange('c', v)} />
+            </div>
+          )}
         </div>
       )}
     </div>

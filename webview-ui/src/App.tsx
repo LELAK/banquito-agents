@@ -221,6 +221,7 @@ function App() {
         isEditMode={editor.isEditMode}
         editorState={editorState}
         onEditorTileAction={editor.handleEditorTileAction}
+        onEditorSelectionChange={editor.handleEditorSelectionChange}
         onDeleteSelected={editor.handleDeleteSelected}
         onRotateSelected={editor.handleRotateSelected}
         onDragMove={editor.handleDragMove}
@@ -265,21 +266,29 @@ function App() {
         </div>
       )}
 
-      {editor.isEditMode && (
-        <EditorToolbar
-          activeTool={editorState.activeTool}
-          selectedTileType={editorState.selectedTileType}
-          selectedFurnitureType={editorState.selectedFurnitureType}
-          floorColor={editorState.floorColor}
-          furnitureColor={editorState.furnitureColor}
-          onToolChange={editor.handleToolChange}
-          onTileTypeChange={editor.handleTileTypeChange}
-          onFloorColorChange={editor.handleFloorColorChange}
-          onFurnitureColorChange={editor.handleFurnitureColorChange}
-          onFurnitureTypeChange={editor.handleFurnitureTypeChange}
-          loadedAssets={loadedAssets}
-        />
-      )}
+      {editor.isEditMode && (() => {
+        // Compute selected furniture color from current layout
+        const selUid = editorState.selectedFurnitureUid
+        const selColor = selUid
+          ? officeState.getLayout().furniture.find((f) => f.uid === selUid)?.color ?? null
+          : null
+        return (
+          <EditorToolbar
+            activeTool={editorState.activeTool}
+            selectedTileType={editorState.selectedTileType}
+            selectedFurnitureType={editorState.selectedFurnitureType}
+            selectedFurnitureUid={selUid}
+            selectedFurnitureColor={selColor}
+            floorColor={editorState.floorColor}
+            onToolChange={editor.handleToolChange}
+            onTileTypeChange={editor.handleTileTypeChange}
+            onFloorColorChange={editor.handleFloorColorChange}
+            onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
+            onFurnitureTypeChange={editor.handleFurnitureTypeChange}
+            loadedAssets={loadedAssets}
+          />
+        )
+      })()}
 
       <AgentLabels
         officeState={officeState}
