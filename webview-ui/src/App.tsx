@@ -196,6 +196,7 @@ function App() {
         isEditMode={editor.isEditMode}
         editorState={editorState}
         onEditorTileAction={editor.handleEditorTileAction}
+        onEditorEraseAction={editor.handleEditorEraseAction}
         onEditorSelectionChange={editor.handleEditorSelectionChange}
         onDeleteSelected={editor.handleDeleteSelected}
         onRotateSelected={editor.handleRotateSelected}

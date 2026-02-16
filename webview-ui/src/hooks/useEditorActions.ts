@@ -4,7 +4,8 @@ import type { EditorState } from '../office/editor/editorState.js'
 import { EditTool } from '../office/types.js'
 import { TileType } from '../office/types.js'
 import type { OfficeLayout, EditTool as EditToolType, TileType as TileTypeVal, FloorColor, PlacedFurniture } from '../office/types.js'
-import { paintTile, placeFurniture, removeFurniture, moveFurniture, rotateFurniture, toggleFurnitureState, canPlaceFurniture, getWallPlacementRow } from '../office/editor/editorActions.js'
+import { paintTile, placeFurniture, removeFurniture, moveFurniture, rotateFurniture, toggleFurnitureState, canPlaceFurniture, getWallPlacementRow, expandLayout } from '../office/editor/editorActions.js'
+import type { ExpandDirection } from '../office/editor/editorActions.js'
 import { getCatalogEntry, getRotatedType, getToggledType } from '../office/layout/furnitureCatalog.js'
 import { defaultZoom } from '../office/toolUtils.js'
 import { vscode } from '../vscodeApi.js'
@@ -34,6 +35,7 @@ export interface EditorActions {
   handleSave: () => void
   handleZoomChange: (zoom: number) => void
   handleEditorTileAction: (col: number, row: number) => void
+  handleEditorEraseAction: (col: number, row: number) => void
   handleEditorSelectionChange: () => void
   handleDragMove: (uid: string, newCol: number, newRow: number) => void
 }
@@ -324,17 +326,64 @@ export function useEditorActions(
     }
   }, [getOfficeState, applyEdit])
 
+  /**
+   * Expand layout if click is on a ghost border tile (outside current bounds).
+   * Returns the expanded layout and adjusted col/row, or null if no expansion needed.
+   */
+  const maybeExpand = useCallback((layout: OfficeLayout, col: number, row: number): { layout: OfficeLayout; col: number; row: number; shift: { col: number; row: number } } | null => {
+    if (col >= 0 && col < layout.cols && row >= 0 && row < layout.rows) return null
+
+    // Determine which directions to expand
+    const directions: ExpandDirection[] = []
+    if (col < 0) directions.push('left')
+    if (col >= layout.cols) directions.push('right')
+    if (row < 0) directions.push('up')
+    if (row >= layout.rows) directions.push('down')
+
+    let current = layout
+    let totalShiftCol = 0
+    let totalShiftRow = 0
+    for (const dir of directions) {
+      const result = expandLayout(current, dir)
+      if (!result) return null // exceeded max
+      current = result.layout
+      totalShiftCol += result.shift.col
+      totalShiftRow += result.shift.row
+    }
+
+    return {
+      layout: current,
+      col: col + totalShiftCol,
+      row: row + totalShiftRow,
+      shift: { col: totalShiftCol, row: totalShiftRow },
+    }
+  }, [])
+
   const handleEditorTileAction = useCallback((col: number, row: number) => {
     const os = getOfficeState()
-    const layout = os.getLayout()
+    let layout = os.getLayout()
+    let effectiveCol = col
+    let effectiveRow = row
+
+    // Handle ghost border expansion for floor/wall tools
+    if (editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT) {
+      const expansion = maybeExpand(layout, col, row)
+      if (expansion) {
+        layout = expansion.layout
+        effectiveCol = expansion.col
+        effectiveRow = expansion.row
+        // Rebuild from expanded layout first, shifting character positions
+        os.rebuildFromLayout(layout, expansion.shift)
+      }
+    }
 
     if (editorState.activeTool === EditTool.TILE_PAINT) {
-      const newLayout = paintTile(layout, col, row, editorState.selectedTileType, editorState.floorColor)
+      const newLayout = paintTile(layout, effectiveCol, effectiveRow, editorState.selectedTileType, editorState.floorColor)
       if (newLayout !== layout) {
         applyEdit(newLayout)
       }
     } else if (editorState.activeTool === EditTool.WALL_PAINT) {
-      const idx = row * layout.cols + col
+      const idx = effectiveRow * layout.cols + effectiveCol
       const isWall = layout.tiles[idx] === TileType.WALL
 
       // First tile of drag sets direction
@@ -344,18 +393,26 @@ export function useEditorActions(
 
       if (editorState.wallDragAdding) {
         // Add wall with color
-        const newLayout = paintTile(layout, col, row, TileType.WALL, editorState.wallColor)
+        const newLayout = paintTile(layout, effectiveCol, effectiveRow, TileType.WALL, editorState.wallColor)
         if (newLayout !== layout) {
           applyEdit(newLayout)
         }
       } else {
         // Remove wall → paint floor with current floor settings
         if (isWall) {
-          const newLayout = paintTile(layout, col, row, editorState.selectedTileType, editorState.floorColor)
+          const newLayout = paintTile(layout, effectiveCol, effectiveRow, editorState.selectedTileType, editorState.floorColor)
           if (newLayout !== layout) {
             applyEdit(newLayout)
           }
         }
+      }
+    } else if (editorState.activeTool === EditTool.ERASE) {
+      if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return
+      const idx = row * layout.cols + col
+      if (layout.tiles[idx] === TileType.VOID) return
+      const newLayout = paintTile(layout, col, row, TileType.VOID)
+      if (newLayout !== layout) {
+        applyEdit(newLayout)
       }
     } else if (editorState.activeTool === EditTool.FURNITURE_PLACE) {
       const type = editorState.selectedFurnitureType
@@ -397,7 +454,7 @@ export function useEditorActions(
     } else if (editorState.activeTool === EditTool.EYEDROPPER) {
       const idx = row * layout.cols + col
       const tile = layout.tiles[idx]
-      if (tile !== undefined && tile !== TileType.WALL) {
+      if (tile !== undefined && tile !== TileType.WALL && tile !== TileType.VOID) {
         editorState.selectedTileType = tile
         const color = layout.tileColors?.[idx]
         if (color) {
@@ -422,7 +479,20 @@ export function useEditorActions(
       editorState.selectedFurnitureUid = hit ? hit.uid : null
       setEditorTick((n) => n + 1)
     }
-  }, [getOfficeState, editorState, applyEdit])
+  }, [getOfficeState, editorState, applyEdit, maybeExpand])
+
+  const handleEditorEraseAction = useCallback((col: number, row: number) => {
+    const os = getOfficeState()
+    const layout = os.getLayout()
+    if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return
+    const idx = row * layout.cols + col
+    // Only erase non-VOID tiles
+    if (layout.tiles[idx] === TileType.VOID) return
+    const newLayout = paintTile(layout, col, row, TileType.VOID)
+    if (newLayout !== layout) {
+      applyEdit(newLayout)
+    }
+  }, [getOfficeState, applyEdit])
 
   return {
     isEditMode,
@@ -449,6 +519,7 @@ export function useEditorActions(
     handleSave,
     handleZoomChange,
     handleEditorTileAction,
+    handleEditorEraseAction,
     handleEditorSelectionChange,
     handleDragMove,
   }

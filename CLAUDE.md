@@ -27,7 +27,7 @@ webview-ui/src/               — React + TypeScript (Vite)
     SettingsModal.tsx          — Debug toggle popup
     DebugView.tsx              — Debug overlay
   office/
-    types.ts                  — Constants (TILE_SIZE=16, MAP 20x11), interfaces, OfficeLayout, FloorColor
+    types.ts                  — Constants (TILE_SIZE=16, DEFAULT 20×11, MAX 64×64), interfaces, OfficeLayout, FloorColor
     toolUtils.ts              — STATUS_TO_TOOL mapping, extractToolName(), defaultZoom()
     colorize.ts               — Dual-mode color module: Colorize (grayscale→HSL) + Adjust (HSL shift)
     floorTiles.ts             — Floor sprite storage + colorized cache
@@ -36,7 +36,7 @@ webview-ui/src/               — React + TypeScript (Vite)
       spriteData.ts           — Pixel data: characters (6 pre-colored from PNGs, fallback templates), furniture, tiles, bubbles
       spriteCache.ts          — SpriteData → offscreen canvas, per-zoom WeakMap cache, outline sprites
     editor/
-      editorActions.ts        — Pure layout ops: paint, place, remove, move, rotate, toggleState, canPlace
+      editorActions.ts        — Pure layout ops: paint, place, remove, move, rotate, toggleState, canPlace, expandLayout
       editorState.ts          — Imperative state: tools, ghost, selection, undo/redo, dirty, drag
       EditorToolbar.tsx       — React toolbar/palette for edit mode
     layout/
@@ -102,7 +102,7 @@ JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Pro
 
 ## Layout Editor
 
-Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Wall paint, Furniture place, Furniture pick (eyedropper for furniture type), Eyedropper (floor).
+Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Wall paint, Erase (set tiles to VOID), Furniture place, Furniture pick (eyedropper for furniture type), Eyedropper (floor).
 
 **Floor**: 7 patterns from `floors.png` (grayscale 16×16), colorizable via HSBC sliders (Photoshop Colorize). Color baked per-tile on paint. Eyedropper picks pattern+color.
 
@@ -114,7 +114,11 @@ Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Wall paint, Fu
 
 **Multi-stage Esc**: exit furniture pick → deselect catalog → close tool tab → deselect furniture → close editor.
 
-**Layout model**: `{ version: 1, cols, rows, tiles: TileType[], furniture: PlacedFurniture[], tileColors?: FloorColor[] }`. Persisted via debounced saveLayout message.
+**Erase tool**: Sets tiles to `TileType.VOID` (transparent, non-walkable, no furniture). Right-click in floor/wall/erase tools also erases to VOID (supports drag-erasing). Context menu suppressed in edit mode.
+
+**Grid expansion**: In floor/wall/erase tools, a ghost border (dashed outline) appears 1 tile outside the grid. Clicking a ghost tile calls `expandLayout()` to grow the grid by 1 tile in that direction (left/right/up/down). New tiles are VOID. Furniture positions and character positions shift when expanding left/up. Max grid size: `MAX_COLS`×`MAX_ROWS` (64×64). Default: `DEFAULT_COLS`×`DEFAULT_ROWS` (20×11). Characters outside bounds after resize are relocated to random walkable tiles.
+
+**Layout model**: `{ version: 1, cols, rows, tiles: TileType[], furniture: PlacedFurniture[], tileColors?: FloorColor[] }`. Grid dimensions are dynamic (not fixed constants). Persisted via debounced saveLayout message.
 
 ## Asset System
 
@@ -128,7 +132,7 @@ Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Wall paint, Fu
 
 **Auto-state**: `officeState.rebuildFurnitureInstances()` swaps electronics to ON sprites when an active agent faces a desk with that item nearby (3 tiles deep in facing direction, 1 tile to each side). Operates at render time without modifying the saved layout.
 
-**Background tiles**: `backgroundTiles?: number` on `FurnitureCatalogEntry` — top N footprint rows allow other furniture to be placed on them. Items on background rows render behind the host furniture via z-sort (lower zY). `getPlacementBlockedTiles()` skips bg rows for occupied set; `canPlaceFurniture()` also skips the new item's own bg rows (symmetric placement). Walking is still blocked (`getBlockedTiles()` unchanged). Set via asset-manager.html "Background Tiles" field.
+**Background tiles**: `backgroundTiles?: number` on `FurnitureCatalogEntry` — top N footprint rows allow other furniture to be placed on them AND characters to walk through them. Items on background rows render behind the host furniture via z-sort (lower zY). Both `getBlockedTiles()` and `getPlacementBlockedTiles()` skip bg rows; `canPlaceFurniture()` also skips the new item's own bg rows (symmetric placement). Set via asset-manager.html "Background Tiles" field.
 
 **Surface placement**: `canPlaceOnSurfaces?: boolean` on `FurnitureCatalogEntry` — items like laptops, monitors, mugs can overlap with all tiles of `isDesk` furniture. `canPlaceFurniture()` builds a desk-tile set and excludes it from collision checks for surface items. Z-sort fix: `layoutToFurnitureInstances()` pre-computes desk zY per tile; surface items get `zY = max(spriteBottom, deskZY + 0.5)` so they render in front of the desk. Set via asset-manager.html "Can Place On Surfaces" checkbox. Exported through `5-export-assets.ts` → `furniture-catalog.json`.
 

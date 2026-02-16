@@ -207,6 +207,7 @@ export function EditorToolbar({
 
   const isFloorActive = activeTool === EditTool.TILE_PAINT || activeTool === EditTool.EYEDROPPER
   const isWallActive = activeTool === EditTool.WALL_PAINT
+  const isEraseActive = activeTool === EditTool.ERASE
   const isFurnitureActive = activeTool === EditTool.FURNITURE_PLACE || activeTool === EditTool.FURNITURE_PICK
 
   return (
@@ -242,6 +243,13 @@ export function EditorToolbar({
           title="Paint walls (click to toggle)"
         >
           Wall
+        </button>
+        <button
+          style={isEraseActive ? activeBtnStyle : btnStyle}
+          onClick={() => onToolChange(EditTool.ERASE)}
+          title="Erase tiles to void"
+        >
+          Erase
         </button>
         <button
           style={isFurnitureActive ? activeBtnStyle : btnStyle}

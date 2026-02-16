@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import type { ToolActivity } from '../types.js'
 import type { OfficeState } from '../engine/officeState.js'
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js'
-import { TILE_SIZE, MAP_COLS, MAP_ROWS, CharacterState } from '../types.js'
+import { TILE_SIZE, CharacterState } from '../types.js'
 
 interface ToolOverlayProps {
   officeState: OfficeState
@@ -66,8 +66,9 @@ export function ToolOverlay({
   const dpr = window.devicePixelRatio || 1
   const canvasW = Math.round(rect.width * dpr)
   const canvasH = Math.round(rect.height * dpr)
-  const mapW = MAP_COLS * TILE_SIZE * zoom
-  const mapH = MAP_ROWS * TILE_SIZE * zoom
+  const layout = officeState.getLayout()
+  const mapW = layout.cols * TILE_SIZE * zoom
+  const mapH = layout.rows * TILE_SIZE * zoom
   const deviceOffsetX = Math.floor((canvasW - mapW) / 2) + Math.round(panRef.current.x)
   const deviceOffsetY = Math.floor((canvasH - mapH) / 2) + Math.round(panRef.current.y)
 

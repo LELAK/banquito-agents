@@ -37,14 +37,28 @@ export class OfficeState {
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles)
   }
 
-  /** Rebuild all derived state from a new layout. Reassigns existing characters. */
-  rebuildFromLayout(layout: OfficeLayout): void {
+  /** Rebuild all derived state from a new layout. Reassigns existing characters.
+   *  @param shift Optional pixel shift to apply when grid expands left/up */
+  rebuildFromLayout(layout: OfficeLayout, shift?: { col: number; row: number }): void {
     this.layout = layout
     this.tileMap = layoutToTileMap(layout)
     this.seats = layoutToSeats(layout.furniture)
     this.blockedTiles = getBlockedTiles(layout.furniture)
     this.rebuildFurnitureInstances()
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles)
+
+    // Shift character positions when grid expands left/up
+    if (shift && (shift.col !== 0 || shift.row !== 0)) {
+      for (const ch of this.characters.values()) {
+        ch.tileCol += shift.col
+        ch.tileRow += shift.row
+        ch.x += shift.col * TILE_SIZE
+        ch.y += shift.row * TILE_SIZE
+        // Clear path since tile coords changed
+        ch.path = []
+        ch.moveProgress = 0
+      }
+    }
 
     // Reassign characters to new seats, preserving existing assignments when possible
     for (const seat of this.seats.values()) {
@@ -86,6 +100,26 @@ export class OfficeState {
         ch.dir = seat.facingDir
       }
     }
+
+    // Relocate any characters that ended up outside bounds or on non-walkable tiles
+    for (const ch of this.characters.values()) {
+      if (ch.seatId) continue // seated characters are fine
+      if (ch.tileCol < 0 || ch.tileCol >= layout.cols || ch.tileRow < 0 || ch.tileRow >= layout.rows) {
+        this.relocateCharacterToWalkable(ch)
+      }
+    }
+  }
+
+  /** Move a character to a random walkable tile */
+  private relocateCharacterToWalkable(ch: Character): void {
+    if (this.walkableTiles.length === 0) return
+    const spawn = this.walkableTiles[Math.floor(Math.random() * this.walkableTiles.length)]
+    ch.tileCol = spawn.col
+    ch.tileRow = spawn.row
+    ch.x = spawn.col * TILE_SIZE + TILE_SIZE / 2
+    ch.y = spawn.row * TILE_SIZE + TILE_SIZE / 2
+    ch.path = []
+    ch.moveProgress = 0
   }
 
   getLayout(): OfficeLayout {

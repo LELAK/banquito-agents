@@ -4,7 +4,7 @@ import type { EditorState } from '../editor/editorState.js'
 import type { EditorRenderState, SelectionRenderState, DeleteButtonBounds, RotateButtonBounds } from '../engine/renderer.js'
 import { startGameLoop } from '../engine/gameLoop.js'
 import { renderFrame } from '../engine/renderer.js'
-import { TILE_SIZE, MAP_COLS, MAP_ROWS, EditTool } from '../types.js'
+import { TILE_SIZE, EditTool } from '../types.js'
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js'
 import { canPlaceFurniture, getWallPlacementRow } from '../editor/editorActions.js'
 import { vscode } from '../../vscodeApi.js'
@@ -15,6 +15,7 @@ interface OfficeCanvasProps {
   isEditMode: boolean
   editorState: EditorState
   onEditorTileAction: (col: number, row: number) => void
+  onEditorEraseAction: (col: number, row: number) => void
   onEditorSelectionChange: () => void
   onDeleteSelected: () => void
   onRotateSelected: () => void
@@ -25,7 +26,7 @@ interface OfficeCanvasProps {
   panRef: React.MutableRefObject<{ x: number; y: number }>
 }
 
-export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, onEditorTileAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
+export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const offsetRef = useRef({ x: 0, y: 0 })
@@ -35,6 +36,8 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
   // Delete/rotate button bounds (updated each frame by renderer)
   const deleteButtonBoundsRef = useRef<DeleteButtonBounds | null>(null)
   const rotateButtonBoundsRef = useRef<RotateButtonBounds | null>(null)
+  // Right-click erase dragging
+  const isEraseDraggingRef = useRef(false)
 
   // Resize canvas backing store to device pixels (no DPR transform on ctx)
   const resizeCanvas = useCallback(() => {
@@ -73,6 +76,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         // Build editor render state
         let editorRender: EditorRenderState | undefined
         if (isEditMode) {
+          const showGhostBorder = editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT || editorState.activeTool === EditTool.ERASE
           editorRender = {
             showGrid: true,
             ghostSprite: null,
@@ -87,6 +91,9 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
             isRotatable: false,
             deleteButtonBounds: null,
             rotateButtonBounds: null,
+            showGhostBorder,
+            ghostBorderHoverCol: showGhostBorder ? editorState.ghostCol : -999,
+            ghostBorderHoverRow: showGhostBorder ? editorState.ghostRow : -999,
           }
 
           // Ghost preview for furniture placement
@@ -148,8 +155,9 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         if (officeState.selectedAgentId !== null) {
           const followCh = officeState.characters.get(officeState.selectedAgentId)
           if (followCh) {
-            const mapW = MAP_COLS * TILE_SIZE * zoom
-            const mapH = MAP_ROWS * TILE_SIZE * zoom
+            const layout = officeState.getLayout()
+            const mapW = layout.cols * TILE_SIZE * zoom
+            const mapH = layout.rows * TILE_SIZE * zoom
             const targetX = mapW / 2 - followCh.x * zoom
             const targetY = mapH / 2 - followCh.y * zoom
             const lerpFactor = 0.1
@@ -189,6 +197,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
           editorRender,
           officeState.getLayout().tileColors,
           officeState.getLayout().cols,
+          officeState.getLayout().rows,
         )
         offsetRef.current = { x: offsetX, y: offsetY }
 
@@ -231,10 +240,16 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
       if (!pos) return null
       const col = Math.floor(pos.worldX / TILE_SIZE)
       const row = Math.floor(pos.worldY / TILE_SIZE)
-      if (col < 0 || col >= MAP_COLS || row < 0 || row >= MAP_ROWS) return null
+      const layout = officeState.getLayout()
+      // In edit mode with floor/wall/erase tool, extend valid range by 1 for ghost border
+      if (isEditMode && (editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT || editorState.activeTool === EditTool.ERASE)) {
+        if (col < -1 || col > layout.cols || row < -1 || row > layout.rows) return null
+        return { col, row }
+      }
+      if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return null
       return { col, row }
     },
-    [screenToWorld],
+    [screenToWorld, officeState, isEditMode, editorState],
   )
 
   // Check if device-pixel coords hit the delete button
@@ -282,9 +297,16 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
             }
           }
 
-          // Paint on drag (tile/wall paint tool only, not during furniture drag)
-          if (editorState.isDragging && (editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT) && !editorState.dragUid) {
+          // Paint on drag (tile/wall/erase paint tool only, not during furniture drag)
+          if (editorState.isDragging && (editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT || editorState.activeTool === EditTool.ERASE) && !editorState.dragUid) {
             onEditorTileAction(tile.col, tile.row)
+          }
+          // Right-click erase drag
+          if (isEraseDraggingRef.current && (editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT || editorState.activeTool === EditTool.ERASE)) {
+            const layout = officeState.getLayout()
+            if (tile.col >= 0 && tile.col < layout.cols && tile.row >= 0 && tile.row < layout.rows) {
+              onEditorEraseAction(tile.col, tile.row)
+            }
           }
         } else {
           editorState.ghostCol = -1
@@ -353,7 +375,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
       }
       officeState.hoveredAgentId = hitId
     },
-    [officeState, screenToWorld, screenToTile, isEditMode, editorState, onEditorTileAction, panRef, hitTestDeleteButton, hitTestRotateButton],
+    [officeState, screenToWorld, screenToTile, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, panRef, hitTestDeleteButton, hitTestRotateButton],
   )
 
   const handleMouseDown = useCallback(
@@ -372,6 +394,19 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         }
         const canvas = canvasRef.current
         if (canvas) canvas.style.cursor = 'grabbing'
+        return
+      }
+
+      // Right-click in edit mode for erasing
+      if (e.button === 2 && isEditMode) {
+        const tile = screenToTile(e.clientX, e.clientY)
+        if (tile && (editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT || editorState.activeTool === EditTool.ERASE)) {
+          const layout = officeState.getLayout()
+          if (tile.col >= 0 && tile.col < layout.cols && tile.row >= 0 && tile.row < layout.rows) {
+            isEraseDraggingRef.current = true
+            onEditorEraseAction(tile.col, tile.row)
+          }
+        }
         return
       }
 
@@ -427,7 +462,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         onEditorTileAction(tile.col, tile.row)
       }
     },
-    [officeState, isEditMode, editorState, screenToTile, screenToWorld, onEditorTileAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, hitTestDeleteButton, hitTestRotateButton, panRef],
+    [officeState, isEditMode, editorState, screenToTile, screenToWorld, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, hitTestDeleteButton, hitTestRotateButton, panRef],
   )
 
   const handleMouseUp = useCallback(
@@ -436,6 +471,10 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         isPanningRef.current = false
         const canvas = canvasRef.current
         if (canvas) canvas.style.cursor = isEditMode ? 'crosshair' : 'default'
+        return
+      }
+      if (e.button === 2) {
+        isEraseDraggingRef.current = false
         return
       }
 
@@ -542,6 +581,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
 
   const handleMouseLeave = useCallback(() => {
     isPanningRef.current = false
+    isEraseDraggingRef.current = false
     editorState.isDragging = false
     editorState.wallDragAdding = null
     editorState.clearDrag()
@@ -550,6 +590,12 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
     officeState.hoveredAgentId = null
     officeState.hoveredTile = null
   }, [officeState, editorState])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (isEditMode) {
+      e.preventDefault()
+    }
+  }, [isEditMode])
 
   // Ctrl+wheel to zoom in/out by integer steps
   const handleWheel = useCallback(
@@ -590,6 +636,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         onAuxClick={handleAuxClick}
         onMouseLeave={handleMouseLeave}
         onWheel={handleWheel}
+        onContextMenu={handleContextMenu}
         style={{ display: 'block' }}
       />
     </div>

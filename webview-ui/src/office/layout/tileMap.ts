@@ -1,4 +1,4 @@
-import { TileType, MAP_COLS, MAP_ROWS } from '../types.js'
+import { TileType } from '../types.js'
 
 /** Check if a tile is walkable (floor, carpet, or doorway, and not blocked by furniture) */
 export function isWalkable(
@@ -7,9 +7,11 @@ export function isWalkable(
   tileMap: TileType[][],
   blockedTiles: Set<string>,
 ): boolean {
-  if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) return false
+  const rows = tileMap.length
+  const cols = rows > 0 ? tileMap[0].length : 0
+  if (row < 0 || row >= rows || col < 0 || col >= cols) return false
   const t = tileMap[row][col]
-  if (t === TileType.WALL) return false
+  if (t === TileType.WALL || t === TileType.VOID) return false
   if (blockedTiles.has(`${col},${row}`)) return false
   return true
 }
@@ -19,9 +21,11 @@ export function getWalkableTiles(
   tileMap: TileType[][],
   blockedTiles: Set<string>,
 ): Array<{ col: number; row: number }> {
+  const rows = tileMap.length
+  const cols = rows > 0 ? tileMap[0].length : 0
   const tiles: Array<{ col: number; row: number }> = []
-  for (let r = 0; r < MAP_ROWS; r++) {
-    for (let c = 0; c < MAP_COLS; c++) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
       if (isWalkable(c, r, tileMap, blockedTiles)) {
         tiles.push({ col: c, row: r })
       }

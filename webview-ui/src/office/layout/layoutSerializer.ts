@@ -1,4 +1,4 @@
-import { TileType, FurnitureType, MAP_COLS, MAP_ROWS, TILE_SIZE, Direction } from '../types.js'
+import { TileType, FurnitureType, DEFAULT_COLS, DEFAULT_ROWS, TILE_SIZE, Direction } from '../types.js'
 import type { TileType as TileTypeVal, OfficeLayout, PlacedFurniture, Seat, FurnitureInstance, FloorColor } from '../types.js'
 import { getCatalogEntry } from './furnitureCatalog.js'
 import { getColorizedSprite } from '../colorize.js'
@@ -77,13 +77,16 @@ export function layoutToFurnitureInstances(furniture: PlacedFurniture[]): Furnit
   return instances
 }
 
-/** Get all tiles blocked by furniture footprints, optionally excluding a set of tiles */
+/** Get all tiles blocked by furniture footprints, optionally excluding a set of tiles.
+ *  Skips top backgroundTiles rows so characters can walk through them. */
 export function getBlockedTiles(furniture: PlacedFurniture[], excludeTiles?: Set<string>): Set<string> {
   const tiles = new Set<string>()
   for (const item of furniture) {
     const entry = getCatalogEntry(item.type)
     if (!entry) continue
+    const bgRows = entry.backgroundTiles || 0
     for (let dr = 0; dr < entry.footprintH; dr++) {
+      if (dr < bgRows) continue // skip background rows — characters can walk through
       for (let dc = 0; dc < entry.footprintW; dc++) {
         const key = `${item.col + dc},${item.row + dr}`
         if (excludeTiles && excludeTiles.has(key)) continue
@@ -218,10 +221,10 @@ export function createDefaultLayout(): OfficeLayout {
   const tiles: TileTypeVal[] = []
   const tileColors: Array<FloorColor | null> = []
 
-  for (let r = 0; r < MAP_ROWS; r++) {
-    for (let c = 0; c < MAP_COLS; c++) {
-      if (r === 0 || r === MAP_ROWS - 1) { tiles.push(W); tileColors.push(null); continue }
-      if (c === 0 || c === MAP_COLS - 1) { tiles.push(W); tileColors.push(null); continue }
+  for (let r = 0; r < DEFAULT_ROWS; r++) {
+    for (let c = 0; c < DEFAULT_COLS; c++) {
+      if (r === 0 || r === DEFAULT_ROWS - 1) { tiles.push(W); tileColors.push(null); continue }
+      if (c === 0 || c === DEFAULT_COLS - 1) { tiles.push(W); tileColors.push(null); continue }
       if (c === 10) {
         if (r >= 4 && r <= 6) {
           tiles.push(F4); tileColors.push(DEFAULT_DOORWAY_COLOR)
@@ -261,7 +264,7 @@ export function createDefaultLayout(): OfficeLayout {
     { uid: 'chair-r-right', type: FurnitureType.CHAIR, col: 15, row: 3 },
   ]
 
-  return { version: 1, cols: MAP_COLS, rows: MAP_ROWS, tiles, tileColors, furniture }
+  return { version: 1, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, tiles, tileColors, furniture }
 }
 
 /** Serialize layout to JSON string */

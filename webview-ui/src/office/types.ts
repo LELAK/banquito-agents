@@ -1,6 +1,8 @@
 export const TILE_SIZE = 16
-export const MAP_COLS = 20
-export const MAP_ROWS = 11
+export const DEFAULT_COLS = 20
+export const DEFAULT_ROWS = 11
+export const MAX_COLS = 64
+export const MAX_ROWS = 64
 
 export const TileType = {
   WALL: 0,
@@ -11,6 +13,7 @@ export const TileType = {
   FLOOR_5: 5,
   FLOOR_6: 6,
   FLOOR_7: 7,
+  VOID: 8,
 } as const
 export type TileType = (typeof TileType)[keyof typeof TileType]
 
@@ -113,6 +116,7 @@ export const EditTool = {
   FURNITURE_PICK: 'furniture_pick',
   SELECT: 'select',
   EYEDROPPER: 'eyedropper',
+  ERASE: 'erase',
 } as const
 export type EditTool = (typeof EditTool)[keyof typeof EditTool]
 

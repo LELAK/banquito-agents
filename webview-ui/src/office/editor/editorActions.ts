@@ -1,4 +1,4 @@
-import { MAP_COLS, MAP_ROWS, TileType } from '../types.js'
+import { TileType, MAX_COLS, MAX_ROWS } from '../types.js'
 import type { TileType as TileTypeVal, OfficeLayout, PlacedFurniture, FloorColor } from '../types.js'
 import { getCatalogEntry, getRotatedType, getToggledType } from '../layout/furnitureCatalog.js'
 import { getPlacementBlockedTiles } from '../layout/layoutSerializer.js'
@@ -9,7 +9,7 @@ export function paintTile(layout: OfficeLayout, col: number, row: number, tileTy
   if (idx < 0 || idx >= layout.tiles.length) return layout
 
   const existingColors = layout.tileColors || new Array(layout.tiles.length).fill(null)
-  const newColor = color ?? (tileType === TileType.WALL ? null : { h: 0, s: 0, b: 0, c: 0 })
+  const newColor = color ?? (tileType === TileType.WALL || tileType === TileType.VOID ? null : { h: 0, s: 0, b: 0, c: 0 })
 
   // Check if anything actually changed
   if (layout.tiles[idx] === tileType) {
@@ -97,23 +97,25 @@ export function canPlaceFurniture(
   // Check bounds — wall items may extend above the map (top rows hang above the wall)
   if (entry.canPlaceOnWalls) {
     const bottomRow = row + entry.footprintH - 1
-    if (col < 0 || col + entry.footprintW > MAP_COLS || bottomRow < 0 || bottomRow >= MAP_ROWS) {
+    if (col < 0 || col + entry.footprintW > layout.cols || bottomRow < 0 || bottomRow >= layout.rows) {
       return false
     }
   } else {
-    if (col < 0 || row < 0 || col + entry.footprintW > MAP_COLS || row + entry.footprintH > MAP_ROWS) {
+    if (col < 0 || row < 0 || col + entry.footprintW > layout.cols || row + entry.footprintH > layout.rows) {
       return false
     }
   }
 
-  // Wall placement check (background rows skip this check)
+  // Wall/VOID placement check (background rows skip this check)
   const bgRows = entry.backgroundTiles || 0
   for (let dr = 0; dr < entry.footprintH; dr++) {
     if (dr < bgRows) continue
     if (row + dr < 0) continue // row above map (wall items extending upward)
     for (let dc = 0; dc < entry.footprintW; dc++) {
       const idx = (row + dr) * layout.cols + (col + dc)
-      const isWall = layout.tiles[idx] === TileType.WALL
+      const tileVal = layout.tiles[idx]
+      if (tileVal === TileType.VOID) return false // Cannot place on VOID
+      const isWall = tileVal === TileType.WALL
       if (entry.canPlaceOnWalls) {
         // Wall items: only the bottom row must be on wall tiles
         if (dr === entry.footprintH - 1 && !isWall) return false
@@ -155,4 +157,63 @@ export function canPlaceFurniture(
   }
 
   return true
+}
+
+export type ExpandDirection = 'left' | 'right' | 'up' | 'down'
+
+/**
+ * Expand layout by 1 tile in the given direction. New tiles are VOID.
+ * Furniture and tile indices are shifted when expanding left or up.
+ * Returns { layout, shift } or null if exceeding MAX_COLS/MAX_ROWS.
+ */
+export function expandLayout(
+  layout: OfficeLayout,
+  direction: ExpandDirection,
+): { layout: OfficeLayout; shift: { col: number; row: number } } | null {
+  const { cols, rows, tiles, furniture, tileColors } = layout
+  const existingColors = tileColors || new Array(tiles.length).fill(null)
+
+  let newCols = cols
+  let newRows = rows
+  let shiftCol = 0
+  let shiftRow = 0
+
+  if (direction === 'right') {
+    newCols = cols + 1
+  } else if (direction === 'left') {
+    newCols = cols + 1
+    shiftCol = 1
+  } else if (direction === 'down') {
+    newRows = rows + 1
+  } else if (direction === 'up') {
+    newRows = rows + 1
+    shiftRow = 1
+  }
+
+  if (newCols > MAX_COLS || newRows > MAX_ROWS) return null
+
+  // Build new tile array
+  const newTiles: TileTypeVal[] = new Array(newCols * newRows).fill(TileType.VOID as TileTypeVal)
+  const newColors: Array<FloorColor | null> = new Array(newCols * newRows).fill(null)
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const oldIdx = r * cols + c
+      const newIdx = (r + shiftRow) * newCols + (c + shiftCol)
+      newTiles[newIdx] = tiles[oldIdx]
+      newColors[newIdx] = existingColors[oldIdx]
+    }
+  }
+
+  // Shift furniture positions
+  const newFurniture: PlacedFurniture[] = furniture.map((f) => ({
+    ...f,
+    col: f.col + shiftCol,
+    row: f.row + shiftRow,
+  }))
+
+  return {
+    layout: { ...layout, cols: newCols, rows: newRows, tiles: newTiles, tileColors: newColors, furniture: newFurniture },
+    shift: { col: shiftCol, row: shiftRow },
+  }
 }

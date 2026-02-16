@@ -10,7 +10,7 @@
  */
 
 import type { SpriteData, TileType as TileTypeVal, FloorColor, FurnitureInstance } from './types.js'
-import { TileType, TILE_SIZE, MAP_ROWS, MAP_COLS } from './types.js'
+import { TileType, TILE_SIZE } from './types.js'
 import { getColorizedSprite } from './colorize.js'
 
 /** 16 wall sprites indexed by bitmask (0-15) */
@@ -37,12 +37,15 @@ export function getWallSprite(
 ): { sprite: SpriteData; offsetY: number } | null {
   if (!wallSprites) return null
 
+  const tmRows = tileMap.length
+  const tmCols = tmRows > 0 ? tileMap[0].length : 0
+
   // Build 4-bit neighbor bitmask
   let mask = 0
   if (row > 0 && tileMap[row - 1][col] === TileType.WALL) mask |= 1            // N
-  if (col < MAP_COLS - 1 && tileMap[row][col + 1] === TileType.WALL) mask |= 2  // E
-  if (row < MAP_ROWS - 1 && tileMap[row + 1][col] === TileType.WALL) mask |= 4  // S
-  if (col > 0 && tileMap[row][col - 1] === TileType.WALL) mask |= 8             // W
+  if (col < tmCols - 1 && tileMap[row][col + 1] === TileType.WALL) mask |= 2   // E
+  if (row < tmRows - 1 && tileMap[row + 1][col] === TileType.WALL) mask |= 4   // S
+  if (col > 0 && tileMap[row][col - 1] === TileType.WALL) mask |= 8            // W
 
   const sprite = wallSprites[mask]
   if (!sprite) return null
@@ -64,12 +67,15 @@ export function getColorizedWallSprite(
 ): { sprite: SpriteData; offsetY: number } | null {
   if (!wallSprites) return null
 
+  const tmRows = tileMap.length
+  const tmCols = tmRows > 0 ? tileMap[0].length : 0
+
   // Build 4-bit neighbor bitmask (same as getWallSprite)
   let mask = 0
   if (row > 0 && tileMap[row - 1][col] === TileType.WALL) mask |= 1            // N
-  if (col < MAP_COLS - 1 && tileMap[row][col + 1] === TileType.WALL) mask |= 2  // E
-  if (row < MAP_ROWS - 1 && tileMap[row + 1][col] === TileType.WALL) mask |= 4  // S
-  if (col > 0 && tileMap[row][col - 1] === TileType.WALL) mask |= 8             // W
+  if (col < tmCols - 1 && tileMap[row][col + 1] === TileType.WALL) mask |= 2   // E
+  if (row < tmRows - 1 && tileMap[row + 1][col] === TileType.WALL) mask |= 4   // S
+  if (col > 0 && tileMap[row][col - 1] === TileType.WALL) mask |= 8            // W
 
   const sprite = wallSprites[mask]
   if (!sprite) return null
@@ -90,11 +96,14 @@ export function getWallInstances(
   cols?: number,
 ): FurnitureInstance[] {
   if (!wallSprites) return []
+  const tmRows = tileMap.length
+  const tmCols = tmRows > 0 ? tileMap[0].length : 0
+  const layoutCols = cols ?? tmCols
   const instances: FurnitureInstance[] = []
-  for (let r = 0; r < MAP_ROWS; r++) {
-    for (let c = 0; c < MAP_COLS; c++) {
+  for (let r = 0; r < tmRows; r++) {
+    for (let c = 0; c < tmCols; c++) {
       if (tileMap[r][c] !== TileType.WALL) continue
-      const colorIdx = cols ? r * cols + c : r * MAP_COLS + c
+      const colorIdx = r * layoutCols + c
       const wallColor = tileColors?.[colorIdx]
       const wallInfo = wallColor
         ? getColorizedWallSprite(c, r, tileMap, wallColor)

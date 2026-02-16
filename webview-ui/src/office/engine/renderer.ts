@@ -1,4 +1,4 @@
-import { TileType, TILE_SIZE, MAP_COLS, MAP_ROWS, CharacterState } from '../types.js'
+import { TileType, TILE_SIZE, CharacterState } from '../types.js'
 import type { TileType as TileTypeVal, FurnitureInstance, Character, SpriteData, Seat, FloorColor } from '../types.js'
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js'
 import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js'
@@ -19,16 +19,22 @@ export function renderTileGrid(
 ): void {
   const s = TILE_SIZE * zoom
   const useSpriteFloors = hasFloorSprites()
+  const tmRows = tileMap.length
+  const tmCols = tmRows > 0 ? tileMap[0].length : 0
+  const layoutCols = cols ?? tmCols
 
   // Floor tiles + wall base color
-  for (let r = 0; r < MAP_ROWS; r++) {
-    for (let c = 0; c < MAP_COLS; c++) {
+  for (let r = 0; r < tmRows; r++) {
+    for (let c = 0; c < tmCols; c++) {
       const tile = tileMap[r][c]
+
+      // Skip VOID tiles entirely (transparent)
+      if (tile === TileType.VOID) continue
 
       if (tile === TileType.WALL || !useSpriteFloors) {
         // Wall tiles or fallback: solid color
         if (tile === TileType.WALL) {
-          const colorIdx = cols ? r * cols + c : r * MAP_COLS + c
+          const colorIdx = r * layoutCols + c
           const wallColor = tileColors?.[colorIdx]
           ctx.fillStyle = wallColor ? wallColorToHex(wallColor) : WALL_COLOR
         } else {
@@ -39,7 +45,7 @@ export function renderTileGrid(
       }
 
       // Floor tile: get colorized sprite
-      const colorIdx = cols ? r * cols + c : r * MAP_COLS + c
+      const colorIdx = r * layoutCols + c
       const color = tileColors?.[colorIdx] ?? { h: 0, s: 0, b: 0, c: 0 }
       const sprite = getColorizedFloorSprite(tile, color)
       const cached = getCachedSprite(sprite, zoom)
@@ -177,24 +183,87 @@ export function renderGridOverlay(
   offsetX: number,
   offsetY: number,
   zoom: number,
+  cols: number,
+  rows: number,
+  tileMap?: TileTypeVal[][],
 ): void {
   const s = TILE_SIZE * zoom
   ctx.strokeStyle = 'rgba(255,255,255,0.12)'
   ctx.lineWidth = 1
   ctx.beginPath()
   // Vertical lines — offset by 0.5 for crisp 1px lines
-  for (let c = 0; c <= MAP_COLS; c++) {
+  for (let c = 0; c <= cols; c++) {
     const x = offsetX + c * s + 0.5
     ctx.moveTo(x, offsetY)
-    ctx.lineTo(x, offsetY + MAP_ROWS * s)
+    ctx.lineTo(x, offsetY + rows * s)
   }
   // Horizontal lines
-  for (let r = 0; r <= MAP_ROWS; r++) {
+  for (let r = 0; r <= rows; r++) {
     const y = offsetY + r * s + 0.5
     ctx.moveTo(offsetX, y)
-    ctx.lineTo(offsetX + MAP_COLS * s, y)
+    ctx.lineTo(offsetX + cols * s, y)
   }
   ctx.stroke()
+
+  // Draw faint dashed outlines on VOID tiles
+  if (tileMap) {
+    ctx.save()
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+    ctx.lineWidth = 1
+    ctx.setLineDash([2, 2])
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (tileMap[r]?.[c] === TileType.VOID) {
+          ctx.strokeRect(offsetX + c * s + 0.5, offsetY + r * s + 0.5, s - 1, s - 1)
+        }
+      }
+    }
+    ctx.restore()
+  }
+}
+
+/** Draw faint expansion placeholders 1 tile outside grid bounds (ghost border). */
+export function renderGhostBorder(
+  ctx: CanvasRenderingContext2D,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+  cols: number,
+  rows: number,
+  ghostHoverCol: number,
+  ghostHoverRow: number,
+): void {
+  const s = TILE_SIZE * zoom
+  ctx.save()
+
+  // Collect ghost border tiles: one ring around the grid
+  const ghostTiles: Array<{ c: number; r: number }> = []
+  // Top and bottom rows
+  for (let c = -1; c <= cols; c++) {
+    ghostTiles.push({ c, r: -1 })
+    ghostTiles.push({ c, r: rows })
+  }
+  // Left and right columns (excluding corners already added)
+  for (let r = 0; r < rows; r++) {
+    ghostTiles.push({ c: -1, r })
+    ghostTiles.push({ c: cols, r })
+  }
+
+  for (const { c, r } of ghostTiles) {
+    const x = offsetX + c * s
+    const y = offsetY + r * s
+    const isHovered = c === ghostHoverCol && r === ghostHoverRow
+    if (isHovered) {
+      ctx.fillStyle = 'rgba(60, 130, 220, 0.25)'
+      ctx.fillRect(x, y, s, s)
+    }
+    ctx.strokeStyle = isHovered ? 'rgba(60, 130, 220, 0.5)' : 'rgba(255, 255, 255, 0.06)'
+    ctx.lineWidth = 1
+    ctx.setLineDash([2, 2])
+    ctx.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1)
+  }
+
+  ctx.restore()
 }
 
 export function renderGhostPreview(
@@ -394,6 +463,12 @@ export interface EditorRenderState {
   deleteButtonBounds: DeleteButtonBounds | null
   /** Updated each frame by renderRotateButton */
   rotateButtonBounds: RotateButtonBounds | null
+  /** Whether to show ghost border (expansion tiles outside grid) */
+  showGhostBorder: boolean
+  /** Hovered ghost border tile col (-1 to cols) */
+  ghostBorderHoverCol: number
+  /** Hovered ghost border tile row (-1 to rows) */
+  ghostBorderHoverRow: number
 }
 
 export interface SelectionRenderState {
@@ -418,13 +493,18 @@ export function renderFrame(
   editor?: EditorRenderState,
   tileColors?: Array<FloorColor | null>,
   layoutCols?: number,
+  layoutRows?: number,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
 
+  // Use layout dimensions (fallback to tileMap size)
+  const cols = layoutCols ?? (tileMap.length > 0 ? tileMap[0].length : 0)
+  const rows = layoutRows ?? tileMap.length
+
   // Center map in viewport + pan offset (integer device pixels)
-  const mapW = MAP_COLS * TILE_SIZE * zoom
-  const mapH = MAP_ROWS * TILE_SIZE * zoom
+  const mapW = cols * TILE_SIZE * zoom
+  const mapH = rows * TILE_SIZE * zoom
   const offsetX = Math.floor((canvasWidth - mapW) / 2) + Math.round(panX)
   const offsetY = Math.floor((canvasHeight - mapH) / 2) + Math.round(panY)
 
@@ -455,7 +535,10 @@ export function renderFrame(
   // Editor overlays
   if (editor) {
     if (editor.showGrid) {
-      renderGridOverlay(ctx, offsetX, offsetY, zoom)
+      renderGridOverlay(ctx, offsetX, offsetY, zoom, cols, rows, tileMap)
+    }
+    if (editor.showGhostBorder) {
+      renderGhostBorder(ctx, offsetX, offsetY, zoom, cols, rows, editor.ghostBorderHoverCol, editor.ghostBorderHoverRow)
     }
     if (editor.ghostSprite && editor.ghostCol >= 0) {
       renderGhostPreview(ctx, editor.ghostSprite, editor.ghostCol, editor.ghostRow, editor.ghostValid, offsetX, offsetY, zoom)
