@@ -113,11 +113,8 @@ export class BanquitoSimulator {
     // CORRECT LOAD ORDER per documentation:
     // characterSpritesLoaded → floorTilesLoaded → wallTilesLoaded → furnitureAssetsLoaded → layoutLoaded
     
-    // 1. Send character sprites (use templates since we don't have actual PNG sprites)
-    this.sendMessage({
-      type: 'characterSpritesLoaded',
-      characters: [] // Empty array will trigger fallback to built-in CHARACTER_TEMPLATES
-    })
+    // 1. DON'T send characterSpritesLoaded - let system use built-in CHARACTER_TEMPLATES
+    console.log('🎭 Using built-in character templates (no characterSpritesLoaded message)')
 
     // 2. Send floor tiles (simple patterns)
     this.sendMessage({
@@ -131,30 +128,45 @@ export class BanquitoSimulator {
       sprites: this.createBasicWallSprites()
     })
 
-    // 4. Send furniture assets
+    // 4. Send furniture assets with proper sprite data
+    console.log('🪑 Loading furniture catalog...')
+    const catalog = this.getBasicFurnitureCatalog()
+    const sprites: Record<string, any> = {}
+    
+    // Create basic furniture sprites programmatically
+    for (const item of catalog) {
+      const spriteData = this.createFurnitureSprite(item.width, item.height, item.id)
+      sprites[item.id] = spriteData
+    }
+    
+    console.log(`📦 Sending ${catalog.length} furniture items with sprites`)
     this.sendMessage({
       type: 'furnitureAssetsLoaded',
-      catalog: this.getBasicFurnitureCatalog(),
-      sprites: {}
+      catalog: catalog,
+      sprites: sprites
     })
 
     // 5. FINALLY send layout (last in correct order!) - Force loaded layout over fallback
+    console.log('🎯 Starting layout loading...')
     const layout = await loadBanquitoLayout()
-    console.log('🎯 Layout loaded:', layout ? 'SUCCESS' : 'FALLBACK')
+    console.log('🎯 Layout loaded result:', layout ? 'SUCCESS' : 'FALLBACK')
     
+    let finalLayout
     if (layout) {
-      console.log(`📐 Using full layout: ${layout.cols}×${layout.rows} with ${layout.furniture?.length} furniture`)
-      this.sendMessage({
-        type: 'layoutLoaded',
-        layout: layout
-      })
+      console.log(`📐 ✅ Using full layout: ${layout.cols}×${layout.rows} with ${layout.furniture?.length} furniture`)
+      finalLayout = layout
     } else {
-      console.warn('⚠️ Could not load default-layout.json, using basic fallback')
-      this.sendMessage({
-        type: 'layoutLoaded',
-        layout: this.getDefaultLayout()
-      })
+      console.warn('⚠️ Could not load default-layout.json, using enhanced fallback')
+      finalLayout = this.getDefaultLayout()
+      console.log(`📐 📦 Using fallback layout: ${finalLayout.cols}×${finalLayout.rows} with ${finalLayout.furniture?.length} furniture`)
     }
+    
+    console.log('📤 Sending layoutLoaded message...')
+    this.sendMessage({
+      type: 'layoutLoaded',
+      layout: finalLayout
+    })
+    console.log('✅ layoutLoaded message sent successfully')
 
     // 6. NOW send existing banqueiros (after layout is loaded) - Add agents one by one  
     console.log('👨‍💼 Adding banqueiros...')
@@ -280,23 +292,33 @@ export class BanquitoSimulator {
   }
 
   private getDefaultLayout(): OfficeLayout {
+    console.log('🏗️ Creating fallback office layout...')
+    
     return {
       version: 1,
-      cols: 20,
-      rows: 15,
-      tiles: Array(20 * 15).fill(1), // Basic floor
+      cols: 21,
+      rows: 21,
+      tiles: Array(21 * 21).fill(1), // Basic floor
       furniture: [
-        // Bank desks
-        { uid: 'desk_1', type: 'desk', col: 3, row: 3, color: { h: 30, s: 50, b: -20, c: 10, colorize: true } },
-        { uid: 'desk_2', type: 'desk', col: 8, row: 3, color: { h: 30, s: 50, b: -20, c: 10, colorize: true } },
-        { uid: 'desk_3', type: 'desk', col: 13, row: 6, color: { h: 30, s: 50, b: -20, c: 10, colorize: true } },
-        { uid: 'desk_4', type: 'desk', col: 16, row: 9, color: { h: 25, s: 40, b: -30, c: 15, colorize: true } }, // Manager desk
-        // Bank vault
-        { uid: 'vault_1', type: 'cabinet', col: 18, row: 2, color: { h: 180, s: 30, b: -40, c: 20, colorize: true } },
-        // Customer area
-        { uid: 'chair_1', type: 'chair', col: 5, row: 8, color: { h: 35, s: 60, b: -10, c: 5, colorize: true } },
-        { uid: 'chair_2', type: 'chair', col: 7, row: 8, color: { h: 35, s: 60, b: -10, c: 5, colorize: true } },
-        { uid: 'chair_3', type: 'chair', col: 9, row: 8, color: { h: 35, s: 60, b: -10, c: 5, colorize: true } }
+        // Bank desks with matching IDs from catalog
+        { uid: 'desk_1', type: 'desk_basic', col: 4, row: 4 },
+        { uid: 'desk_2', type: 'desk_basic', col: 8, row: 4 },
+        { uid: 'desk_3', type: 'desk_basic', col: 12, row: 7 },
+        { uid: 'desk_4', type: 'desk_basic', col: 16, row: 10 },
+        
+        // Bank chairs
+        { uid: 'chair_1', type: 'chair_basic', col: 4, row: 6 },
+        { uid: 'chair_2', type: 'chair_basic', col: 8, row: 6 },
+        { uid: 'chair_3', type: 'chair_basic', col: 12, row: 9 },
+        { uid: 'chair_4', type: 'chair_basic', col: 16, row: 12 },
+        
+        // Office decoration
+        { uid: 'plant_1', type: 'plant_basic', col: 2, row: 2 },
+        { uid: 'plant_2', type: 'plant_basic', col: 18, row: 18 },
+        
+        // Filing cabinet/vault
+        { uid: 'vault_1', type: 'cabinet_basic', col: 18, row: 3 },
+        { uid: 'vault_2', type: 'cabinet_basic', col: 2, row: 18 }
       ]
     }
   }
@@ -384,6 +406,31 @@ export class BanquitoSimulator {
       sprites.push(sprite)
     }
     return sprites
+  }
+
+  private createFurnitureSprite(width: number, height: number, type: string) {
+    // Create a simple colored sprite for furniture
+    const sprite = []
+    
+    let baseColor = '#8B6914' // Default brown
+    if (type.includes('chair')) baseColor = '#654321'
+    if (type.includes('plant')) baseColor = '#228B22'
+    if (type.includes('cabinet')) baseColor = '#696969'
+    
+    for (let y = 0; y < height; y++) {
+      const row = []
+      for (let x = 0; x < width; x++) {
+        // Simple border and fill pattern
+        if (x === 0 || y === 0 || x === width-1 || y === height-1) {
+          row.push('#000000') // Black border
+        } else {
+          row.push(baseColor)
+        }
+      }
+      sprite.push(row)
+    }
+    
+    return sprite
   }
 
   public cleanup() {

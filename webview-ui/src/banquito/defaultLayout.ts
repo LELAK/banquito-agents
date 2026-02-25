@@ -5,21 +5,28 @@ import type { OfficeLayout } from '../office/types.js'
 export async function loadBanquitoLayout(): Promise<OfficeLayout | null> {
   try {
     console.log('🏦 Loading Banquito default layout...')
+    console.log('🔍 Fetch URL: ./assets/default-layout.json')
+    
     const response = await fetch('./assets/default-layout.json')
+    console.log(`📡 Response status: ${response.status} ${response.statusText}`)
+    
     if (!response.ok) {
-      console.error('Failed to load default-layout.json:', response.statusText)
+      console.error('❌ Failed to load default-layout.json:', response.status, response.statusText)
       return null
     }
     
-    const layout = await response.json() as OfficeLayout
-    console.log(`🏢 Loaded office layout: ${layout.cols}×${layout.rows} with ${layout.furniture?.length || 0} furniture pieces`)
+    const text = await response.text()
+    console.log(`📄 Response length: ${text.length} chars`)
+    console.log(`📄 First 200 chars: ${text.substring(0, 200)}`)
     
-    // TODO: Could adapt furniture for bank theme here
-    // e.g., replace some office furniture with bank counters, safes, etc.
+    const layout = JSON.parse(text) as OfficeLayout
+    console.log(`🏢 ✅ Loaded office layout: ${layout.cols}×${layout.rows} with ${layout.furniture?.length || 0} furniture pieces`)
+    console.log(`📋 Furniture items:`, layout.furniture?.slice(0, 5).map(f => `${f.type} at (${f.col},${f.row})`))
     
     return layout
   } catch (error) {
-    console.error('Error loading Banquito layout:', error)
+    console.error('❌ Error loading Banquito layout:', error)
+    console.error('📍 Stack trace:', error instanceof Error ? error.stack : String(error))
     return null
   }
 }
