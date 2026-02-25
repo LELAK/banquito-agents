@@ -113,26 +113,22 @@ export class BanquitoSimulator {
     // CORRECT LOAD ORDER per documentation:
     // characterSpritesLoaded → floorTilesLoaded → wallTilesLoaded → furnitureAssetsLoaded → layoutLoaded
     
-    // 1. Send character sprites 
+    // 1. Send character sprites (use templates since we don't have actual PNG sprites)
     this.sendMessage({
       type: 'characterSpritesLoaded',
-      characters: Array(6).fill({
-        down: Array(7).fill([]),
-        up: Array(7).fill([]),
-        right: Array(7).fill([])
-      })
+      characters: [] // Empty array will trigger fallback to built-in CHARACTER_TEMPLATES
     })
 
-    // 2. Send floor tiles
+    // 2. Send floor tiles (simple patterns)
     this.sendMessage({
       type: 'floorTilesLoaded',
-      sprites: Array(7).fill([]) // 7 floor patterns
+      sprites: this.createBasicFloorSprites()
     })
 
     // 3. Send wall tiles  
     this.sendMessage({
       type: 'wallTilesLoaded',
-      sprites: Array(16).fill([]) // 16 wall bitmask sprites
+      sprites: this.createBasicWallSprites()
     })
 
     // 4. Send furniture assets
@@ -303,6 +299,47 @@ export class BanquitoSimulator {
         canPlaceOnWalls: false
       }
     ]
+  }
+
+  private createBasicFloorSprites() {
+    // Create 7 simple floor patterns (16x16 each)
+    const sprites = []
+    for (let pattern = 0; pattern < 7; pattern++) {
+      const sprite = []
+      for (let y = 0; y < 16; y++) {
+        const row = []
+        for (let x = 0; x < 16; x++) {
+          // Different shades of gray for each pattern
+          const base = 80 + pattern * 15
+          const variation = (x + y) % 2 === 0 ? 10 : 0
+          const gray = base + variation
+          const hex = `#${gray.toString(16).padStart(2, '0').repeat(3)}`
+          row.push(hex)
+        }
+        sprite.push(row)
+      }
+      sprites.push(sprite)
+    }
+    return sprites
+  }
+
+  private createBasicWallSprites() {
+    // Create 16 wall bitmask sprites (16x32 each)
+    const sprites = []
+    for (let mask = 0; mask < 16; mask++) {
+      const sprite = []
+      for (let y = 0; y < 32; y++) {
+        const row = []
+        for (let x = 0; x < 16; x++) {
+          // Simple dark gray wall color
+          const color = '#3A3A5C'
+          row.push(color)
+        }
+        sprite.push(row)
+      }
+      sprites.push(sprite)
+    }
+    return sprites
   }
 
   public cleanup() {
