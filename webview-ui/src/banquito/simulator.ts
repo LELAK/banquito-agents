@@ -137,14 +137,24 @@ export class BanquitoSimulator {
     for (const item of catalog) {
       const spriteData = this.createFurnitureSprite(item.width, item.height, item.id)
       sprites[item.id] = spriteData
+      console.log(`🪑 Created sprite for ${item.id}: ${item.width}x${item.height}`)
     }
     
-    console.log(`📦 Sending ${catalog.length} furniture items with sprites`)
+    console.log(`📦 Sending ${catalog.length} furniture items with sprites:`)
+    console.log('📋 Catalog preview:', catalog.slice(0, 3).map(item => `${item.id} (${item.category})`))
+    console.log('🎨 Sprites keys:', Object.keys(sprites).slice(0, 10))
+    
     this.sendMessage({
       type: 'furnitureAssetsLoaded',
       catalog: catalog,
       sprites: sprites
     })
+    
+    console.log('✅ furnitureAssetsLoaded message sent')
+    
+    // Small delay to ensure furniture processing completes before layout
+    await new Promise(resolve => setTimeout(resolve, 100))
+    console.log('⏱️ Furniture processing delay completed')
 
     // 5. FINALLY send layout (last in correct order!) - Force loaded layout over fallback
     console.log('🎯 Starting layout loading...')
@@ -154,11 +164,22 @@ export class BanquitoSimulator {
     let finalLayout
     if (layout) {
       console.log(`📐 ✅ Using full layout: ${layout.cols}×${layout.rows} with ${layout.furniture?.length} furniture`)
+      console.log('🪑 First 5 furniture pieces from loaded layout:')
+      if (layout.furniture) {
+        layout.furniture.slice(0, 5).forEach((item, i) => {
+          console.log(`  ${i+1}. ${item.type} at (${item.col}, ${item.row}) uid: ${item.uid}`)
+        })
+      }
       finalLayout = layout
     } else {
       console.warn('⚠️ Could not load default-layout.json, using enhanced fallback')
       finalLayout = this.getDefaultLayout()
       console.log(`📐 📦 Using fallback layout: ${finalLayout.cols}×${finalLayout.rows} with ${finalLayout.furniture?.length} furniture`)
+      if (finalLayout.furniture) {
+        finalLayout.furniture.forEach((item, i) => {
+          console.log(`  Fallback ${i+1}. ${item.type} at (${item.col}, ${item.row}) uid: ${item.uid}`)
+        })
+      }
     }
     
     console.log('📤 Sending layoutLoaded message...')
@@ -167,6 +188,9 @@ export class BanquitoSimulator {
       layout: finalLayout
     })
     console.log('✅ layoutLoaded message sent successfully')
+    
+    // Debug: Show what we're about to render
+    console.log(`🎯 LAYOUT SUMMARY - Ready to render ${finalLayout.furniture?.length} furniture pieces on ${finalLayout.cols}×${finalLayout.rows} grid`)
 
     // 6. NOW send existing banqueiros (after layout is loaded) - Add agents one by one  
     console.log('👨‍💼 Adding banqueiros...')
@@ -434,20 +458,47 @@ export class BanquitoSimulator {
   }
 
   private createFurnitureSprite(width: number, height: number, type: string) {
-    // Create a simple colored sprite for furniture
+    console.log(`🎨 Creating sprite for ${type}: ${width}x${height}`)
+    
+    // Create a simple colored sprite for furniture with better colors
     const sprite = []
     
-    let baseColor = '#8B6914' // Default brown
-    if (type.includes('chair')) baseColor = '#654321'
-    if (type.includes('plant')) baseColor = '#228B22'
-    if (type.includes('cabinet')) baseColor = '#696969'
+    // More distinctive colors based on asset patterns
+    let baseColor = '#B8860B' // Dark goldenrod - default
+    let borderColor = '#8B4513' // Saddle brown
+    
+    // Classify by ASSET_ ID patterns for better colors
+    if (type.includes('ASSET_40') || type.includes('ASSET_42') || type.includes('ASSET_83') || type.includes('ASSET_84')) {
+      // Desks - wood brown
+      baseColor = '#A0522D'
+      borderColor = '#654321'
+    } else if (type.includes('ASSET_44') || type.includes('ASSET_49') || type.includes('ASSET_51')) {
+      // Chairs - darker brown  
+      baseColor = '#8B4513'
+      borderColor = '#5D2F1A'
+    } else if (type.includes('ASSET_99') || type.includes('ASSET_101') || type.includes('ASSET_27')) {
+      // Plants - green
+      baseColor = '#228B22'
+      borderColor = '#006400'
+    } else if (type.includes('ASSET_142') || type.includes('ASSET_143') || type.includes('ASSET_123')) {
+      // Storage - gray
+      baseColor = '#708090'
+      borderColor = '#2F4F4F'
+    }
     
     for (let y = 0; y < height; y++) {
       const row = []
       for (let x = 0; x < width; x++) {
-        // Simple border and fill pattern
+        // Simple border and fill pattern with shading
         if (x === 0 || y === 0 || x === width-1 || y === height-1) {
-          row.push('#000000') // Black border
+          row.push(borderColor) // Border
+        } else if (x === 1 || y === 1) {
+          // Highlight edge
+          const r = parseInt(baseColor.slice(1, 3), 16)
+          const g = parseInt(baseColor.slice(3, 5), 16) 
+          const b = parseInt(baseColor.slice(5, 7), 16)
+          const highlight = `#${Math.min(255, r + 30).toString(16).padStart(2, '0')}${Math.min(255, g + 30).toString(16).padStart(2, '0')}${Math.min(255, b + 30).toString(16).padStart(2, '0')}`
+          row.push(highlight)
         } else {
           row.push(baseColor)
         }
@@ -455,6 +506,7 @@ export class BanquitoSimulator {
       sprite.push(row)
     }
     
+    console.log(`✅ Created ${width}x${height} sprite for ${type} with color ${baseColor}`)
     return sprite
   }
 
