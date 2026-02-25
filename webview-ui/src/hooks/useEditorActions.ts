@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
 import type { EditorState } from '../office/editor/editorState.js'
 import { EditTool } from '../office/types.js'
@@ -46,6 +46,11 @@ export function useEditorActions(
   editorState: EditorState,
 ): EditorActions {
   const [isEditMode, setIsEditMode] = useState(false)
+  
+  // Debug initial state
+  useEffect(() => {
+    console.log(`🎮 EDITOR ACTIONS INIT: isEditMode=${isEditMode}, editorState.isEditMode=${editorState.isEditMode}`)
+  }, [])
   const [editorTick, setEditorTick] = useState(0)
   const [isDirty, setIsDirty] = useState(false)
   const [zoom, setZoom] = useState(defaultZoom)
@@ -85,6 +90,7 @@ export function useEditorActions(
   const handleToggleEditMode = useCallback(() => {
     setIsEditMode((prev) => {
       const next = !prev
+      console.log(`🎮 EDIT MODE TOGGLE: ${prev} → ${next}`)
       editorState.isEditMode = next
       if (next) {
         // Initialize wallColor from existing wall tiles so new walls match
