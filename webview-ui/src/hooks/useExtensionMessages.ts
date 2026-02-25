@@ -342,6 +342,10 @@ export function useExtensionMessages(
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err)
         }
+      } else if (msg.type === 'forceGameMode') {
+        console.log('🎮 Forcing game mode (disabling editor)')
+        // This message type forces the game out of editor mode
+        // The actual mode toggle will be handled by App.tsx useEffect
       }
     }
     

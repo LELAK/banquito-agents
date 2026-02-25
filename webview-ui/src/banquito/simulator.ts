@@ -138,22 +138,55 @@ export class BanquitoSimulator {
       sprites: {}
     })
 
-    // 5. FINALLY send layout (last in correct order!)
+    // 5. FINALLY send layout (last in correct order!) - Force loaded layout over fallback
     const layout = await loadBanquitoLayout()
-    this.sendMessage({
-      type: 'layoutLoaded',
-      layout: layout || this.getDefaultLayout()
-    })
+    console.log('🎯 Layout loaded:', layout ? 'SUCCESS' : 'FALLBACK')
+    
+    if (layout) {
+      console.log(`📐 Using full layout: ${layout.cols}×${layout.rows} with ${layout.furniture?.length} furniture`)
+      this.sendMessage({
+        type: 'layoutLoaded',
+        layout: layout
+      })
+    } else {
+      console.warn('⚠️ Could not load default-layout.json, using basic fallback')
+      this.sendMessage({
+        type: 'layoutLoaded',
+        layout: this.getDefaultLayout()
+      })
+    }
 
-    // 6. NOW send existing banqueiros (after layout is loaded)
+    // 6. NOW send existing banqueiros (after layout is loaded) - Add agents one by one  
+    console.log('👨‍💼 Adding banqueiros...')
+    BANQUEIROS.forEach((banqueiro, index) => {
+      console.log(`🏦 Adding ${banqueiro.name} (ID: ${banqueiro.id})`)
+      
+      // Send individual agent creation
+      this.sendMessage({
+        type: 'agentCreated',
+        id: banqueiro.id,
+        palette: index % 6,
+        hueShift: index * 20
+      })
+      
+      // Set initial status  
+      this.sendMessage({
+        type: 'agentStatus',
+        id: banqueiro.id,
+        status: 'active'
+      })
+    })
+    
+    // Also send existingAgents as backup
+    console.log('📋 Sending existingAgents backup...')
     this.sendMessage({
       type: 'existingAgents',
       agents: BANQUEIROS.map(b => b.id),
       agentMeta: {
-        1: { palette: 0, hueShift: 0, seatId: 'desk_1' },
-        2: { palette: 1, hueShift: 20, seatId: 'desk_2' },
-        3: { palette: 2, hueShift: 40, seatId: 'desk_3' },
-        4: { palette: 3, hueShift: 60, seatId: 'desk_4' }
+        1: { palette: 0, hueShift: 0 },
+        2: { palette: 1, hueShift: 20 },
+        3: { palette: 2, hueShift: 40 },
+        4: { palette: 3, hueShift: 60 }
       }
     })
 
@@ -163,9 +196,20 @@ export class BanquitoSimulator {
       soundEnabled: true
     })
 
-    // 8. Start activity simulation for each banqueiro (stagger slightly to see them all)
+    // 8. Ensure we're NOT in edit mode (force game mode)
+    console.log('🎮 Forcing GAME MODE (not editor)')
+    this.sendMessage({
+      type: 'forceGameMode',
+      isEditMode: false
+    })
+    
+    // 9. Start activity simulation for each banqueiro (stagger slightly to see them all) 
+    console.log('🎭 Starting banqueiro activities...')
     BANQUEIROS.forEach((banqueiro, index) => {
-      window.setTimeout(() => this.startBanqueiroActivities(banqueiro), index * 500)
+      window.setTimeout(() => {
+        console.log(`▶️ Starting activities for ${banqueiro.name}`)
+        this.startBanqueiroActivities(banqueiro)
+      }, 1000 + (index * 500)) // Extra delay to ensure layout is processed first
     })
   }
 

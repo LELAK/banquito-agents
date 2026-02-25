@@ -165,7 +165,18 @@ function App() {
   useEffect(() => {
     document.title = getBanquitoTitle()
     showBanquitoWelcome()
-  }, [])
+    
+    // Force game mode after a short delay (ensure editor is initialized first)
+    const timer = setTimeout(() => {
+      console.log('🎮 BANQUITO: Forcing game mode, disabling editor')
+      if (editor.isEditMode) {
+        console.log('🎮 Editor was active, switching to game mode')
+        editor.handleToggleEditMode()
+      }
+    }, 2000) // 2 second delay to ensure everything is loaded
+    
+    return () => clearTimeout(timer)
+  }, [editor])
 
   // Force dependency on editorTickForKeyboard to propagate keyboard-triggered re-renders
   void editorTickForKeyboard
