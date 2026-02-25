@@ -1,5 +1,6 @@
 // Banquito Simulator - Simulates Mexican bank employees working
 import type { OfficeLayout } from '../office/types.js'
+import { loadBanquitoLayout } from './defaultLayout.js'
 
 export interface BankeiroActivity {
   id: number
@@ -100,19 +101,20 @@ export class BanquitoSimulator {
   constructor(onMessage: (data: any) => void) {
     this.onMessage = onMessage
     // Start simulation immediately
-    window.setTimeout(() => this.startSimulation(), 100)
+    window.setTimeout(async () => await this.startSimulation(), 100)
   }
 
-  private startSimulation() {
+  private async startSimulation() {
     console.log('🎭 Starting Banquito simulation...')
     console.log('🏦 BANQUITO - El Banco Pequeñito')
     console.log('👀 Watch the bankers work automatically!')
     console.log('🖱️ Click on characters to see their activities!')
     
-    // Send initial layout
+    // Load and send the office layout with furniture
+    const layout = await loadBanquitoLayout()
     this.sendMessage({
       type: 'layoutLoaded',
-      layout: this.getDefaultLayout()
+      layout: layout || this.getDefaultLayout()
     })
 
     // Send character sprites (we'll use default for now)
