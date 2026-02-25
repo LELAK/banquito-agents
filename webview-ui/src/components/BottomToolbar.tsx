@@ -43,7 +43,7 @@ const btnActive: React.CSSProperties = {
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
+  onOpenClaude: _onOpenClaude, // unused in standalone mode
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -54,7 +54,7 @@ export function BottomToolbar({
   return (
     <div style={panelStyle}>
       <button
-        onClick={onOpenClaude}
+        onClick={() => {/* Banqueiros are auto-spawned in simulation */}}
         onMouseEnter={() => setHovered('agent')}
         onMouseLeave={() => setHovered(null)}
         style={{
@@ -66,9 +66,11 @@ export function BottomToolbar({
               : 'var(--pixel-agent-bg)',
           border: '2px solid var(--pixel-agent-border)',
           color: 'var(--pixel-agent-text)',
+          opacity: 0.7, // Disabled look since banqueiros auto-spawn
         }}
+        title="Banqueiros already working! 🏦"
       >
-        + Agent
+        🏦 Banquito
       </button>
       <button
         onClick={onToggleEditMode}

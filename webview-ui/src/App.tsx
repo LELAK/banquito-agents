@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { OfficeState } from './office/engine/officeState.js'
 import { OfficeCanvas } from './office/components/OfficeCanvas.js'
 import { ToolOverlay } from './office/components/ToolOverlay.js'
@@ -14,6 +14,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { showBanquitoWelcome, getBanquitoTitle } from './banquito/welcomeMessage.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -160,6 +161,12 @@ function App() {
 
   const officeState = getOfficeState()
 
+  // Banquito welcome message and setup
+  useEffect(() => {
+    document.title = getBanquitoTitle()
+    showBanquitoWelcome()
+  }, [])
+
   // Force dependency on editorTickForKeyboard to propagate keyboard-triggered re-renders
   void editorTickForKeyboard
 
@@ -177,8 +184,26 @@ function App() {
 
   if (!layoutReady) {
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--vscode-foreground)' }}>
-        Loading...
+      <div style={{ 
+        width: '100%', 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        color: 'var(--vscode-foreground)',
+        background: 'linear-gradient(135deg, #8B0000, #FF6347)',
+        fontFamily: 'monospace'
+      }}>
+        <h1 style={{ fontSize: '32px', marginBottom: '20px', textShadow: '2px 2px 4px #000' }}>
+          🏦 BANQUITO
+        </h1>
+        <p style={{ fontSize: '16px', marginBottom: '10px' }}>
+          El Banco Pequeñito
+        </p>
+        <div style={{ fontSize: '14px', opacity: 0.8 }}>
+          Preparando banqueiros dramáticos... 🎭
+        </div>
       </div>
     )
   }

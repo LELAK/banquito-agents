@@ -99,12 +99,15 @@ export class BanquitoSimulator {
   
   constructor(onMessage: (data: any) => void) {
     this.onMessage = onMessage
-    // Start simulation after a short delay
-    window.setTimeout(() => this.startSimulation(), 1000)
+    // Start simulation immediately
+    window.setTimeout(() => this.startSimulation(), 100)
   }
 
   private startSimulation() {
     console.log('🎭 Starting Banquito simulation...')
+    console.log('🏦 BANQUITO - El Banco Pequeñito')
+    console.log('👀 Watch the bankers work automatically!')
+    console.log('🖱️ Click on characters to see their activities!')
     
     // Send initial layout
     this.sendMessage({
@@ -134,9 +137,9 @@ export class BanquitoSimulator {
       }
     })
 
-    // Start activity simulation for each banqueiro
-    BANQUEIROS.forEach(banqueiro => {
-      this.startBanqueiroActivities(banqueiro)
+    // Start activity simulation for each banqueiro (stagger slightly to see them all)
+    BANQUEIROS.forEach((banqueiro, index) => {
+      window.setTimeout(() => this.startBanqueiroActivities(banqueiro), index * 500)
     })
 
     // Send settings
