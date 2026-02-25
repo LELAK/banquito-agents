@@ -144,15 +144,16 @@ export function ToolOverlay({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 5,
-                background: 'var(--pixel-bg)',
+                background: 'rgba(30, 30, 46, 0.95)',
                 border: isSelected
                   ? '2px solid var(--pixel-border-light)'
                   : '2px solid var(--pixel-border)',
-                borderRadius: 0,
-                padding: isSelected ? '3px 6px 3px 8px' : '3px 8px',
-                boxShadow: 'var(--pixel-shadow)',
+                borderRadius: 4,
+                padding: isSelected ? '4px 8px 4px 10px' : '4px 10px',
+                boxShadow: '2px 2px 8px rgba(0, 0, 0, 0.6)',
                 whiteSpace: 'nowrap',
                 maxWidth: 220,
+                backdropFilter: 'blur(4px)',
               }}
             >
               {dotColor && (
@@ -171,9 +172,11 @@ export function ToolOverlay({
                 style={{
                   fontSize: isSub ? '20px' : '22px',
                   fontStyle: isSub ? 'italic' : undefined,
-                  color: 'var(--vscode-foreground)',
+                  color: 'var(--pixel-balloon-text)',
+                  fontWeight: '400',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
+                  textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
                 }}
               >
                 {activityText}
