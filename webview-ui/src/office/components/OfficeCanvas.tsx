@@ -631,8 +631,14 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
 
   // Wheel: Ctrl+wheel to zoom, plain wheel/trackpad to pan
   const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      e.preventDefault()
+    (e: WheelEvent) => {
+      try {
+        e.preventDefault()
+      } catch (error) {
+        // Ignore preventDefault errors in passive listeners
+        console.log('🎮 preventDefault ignored in passive wheel listener')
+      }
+      
       if (e.ctrlKey || e.metaKey) {
         // Accumulate scroll delta, step zoom when threshold crossed
         zoomAccumulatorRef.current += e.deltaY
@@ -656,6 +662,18 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
     },
     [zoom, onZoomChange, officeState, panRef, clampPan],
   )
+
+  // Register wheel event with { passive: false } to avoid preventDefault warnings
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel)
+    }
+  }, [handleWheel])
 
   // Prevent default middle-click browser behavior (auto-scroll)
   const handleAuxClick = useCallback((e: React.MouseEvent) => {
@@ -681,7 +699,6 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         onClick={handleClick}
         onAuxClick={handleAuxClick}
         onMouseLeave={handleMouseLeave}
-        onWheel={handleWheel}
         onContextMenu={handleContextMenu}
         style={{ display: 'block' }}
       />

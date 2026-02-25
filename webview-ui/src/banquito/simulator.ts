@@ -324,47 +324,72 @@ export class BanquitoSimulator {
   }
 
   private getBasicFurnitureCatalog() {
-    return [
-      {
-        id: 'desk',
-        name: 'desk',
-        label: 'Mesa Bancária',
-        category: 'furniture',
-        file: 'desk.png',
-        width: 64,
-        height: 32,
-        footprintW: 2,
-        footprintH: 1,
-        isDesk: true,
-        canPlaceOnWalls: false
-      },
-      {
-        id: 'chair',
-        name: 'chair', 
-        label: 'Cadeira Cliente',
-        category: 'furniture',
-        file: 'chair.png',
-        width: 32,
-        height: 32,
-        footprintW: 1,
-        footprintH: 1,
-        isDesk: false,
-        canPlaceOnWalls: false
-      },
-      {
-        id: 'cabinet',
-        name: 'cabinet',
-        label: 'Cofre Banco',
-        category: 'furniture', 
-        file: 'cabinet.png',
-        width: 64,
-        height: 64,
-        footprintW: 2,
-        footprintH: 2,
-        isDesk: false,
-        canPlaceOnWalls: false
-      }
+    // Create catalog that matches the ASSET_XX IDs from default-layout.json
+    console.log('📦 Creating furniture catalog with ASSET_XX IDs for compatibility')
+    
+    const assetTypes = [
+      'ASSET_40', 'ASSET_44', 'ASSET_42', 'ASSET_61', 'ASSET_49', 'ASSET_41_0_1',
+      'ASSET_7', 'ASSET_18', 'ASSET_17', 'ASSET_143', 'ASSET_142', 'ASSET_83',
+      'ASSET_84', 'ASSET_101', 'ASSET_NEW_110', 'ASSET_NEW_111', 'ASSET_NEW_106',
+      'ASSET_140', 'ASSET_141', 'ASSET_NEW_112', 'ASSET_109', 'ASSET_99',
+      'ASSET_51', 'ASSET_27_A', 'ASSET_34', 'ASSET_33', 'ASSET_102', 'ASSET_72',
+      'ASSET_100', 'ASSET_139', 'ASSET_90', 'ASSET_123'
     ]
+    
+    return assetTypes.map(assetId => {
+      // Determine furniture type and properties based on ASSET ID
+      let category = 'furniture'
+      let isDesk = false
+      let width = 32
+      let height = 32 
+      let footprintW = 1
+      let footprintH = 1
+      let canPlaceOnWalls = false
+      
+      // Classify assets based on ID patterns (educated guess from typical office assets)
+      if (['ASSET_40', 'ASSET_42', 'ASSET_83', 'ASSET_84'].includes(assetId)) {
+        // Desks
+        category = 'desks'
+        isDesk = true
+        width = 32
+        height = 16
+        footprintW = 2
+        footprintH = 1
+      } else if (['ASSET_44', 'ASSET_49', 'ASSET_51', 'ASSET_109'].includes(assetId)) {
+        // Chairs
+        category = 'chairs'
+        width = 16
+        height = 16
+        footprintW = 1
+        footprintH = 1
+      } else if (['ASSET_99', 'ASSET_101', 'ASSET_27_A'].includes(assetId)) {
+        // Plants and decorations
+        category = 'decor'
+        width = 16
+        height = 24
+      } else if (['ASSET_142', 'ASSET_143', 'ASSET_123'].includes(assetId)) {
+        // Storage/cabinets
+        category = 'storage'
+        width = 16
+        height = 32
+        footprintW = 1
+        footprintH = 2
+      }
+      
+      return {
+        id: assetId,
+        name: assetId,
+        label: `Office ${assetId}`,
+        category: category,
+        file: `${assetId}.png`,
+        width: width,
+        height: height,
+        footprintW: footprintW,
+        footprintH: footprintH,
+        isDesk: isDesk,
+        canPlaceOnWalls: canPlaceOnWalls
+      }
+    })
   }
 
   private createBasicFloorSprites() {
