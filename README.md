@@ -31,6 +31,30 @@ npm run build
 3. Clicar **"+ Banqueiro"** para spawnar um Claude Code terminal
 4. Ver teu agent virar um banqueiro dramático! 🎭
 
+### 🐳 Com Docker (Desenvolvimento)
+```bash
+# Levantar container de desenvolvimento
+docker-compose up -d
+
+# Entrar no container pra desenvolvimento
+docker-compose exec banquito bash
+
+# Build inside container
+npm run build
+
+# Modo watch para hot reload
+npm run watch
+```
+
+### 🏗️ Deploy Production
+```bash
+# Build production
+docker build -t banquito-agents:latest .
+
+# Run container
+docker run -d --name banquito-production banquito-agents:latest
+```
+
 ## 🎨 FEATURES TEMÁTICAS
 
 ### 👨‍🦲 Personagens

@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  banquito:
+    build: .
+    container_name: banquito-agents
+    volumes:
+      # Volume para desenvolvimento - hot reload
+      - .:/home/banquito/workspace
+      - /home/banquito/workspace/node_modules
+      - /home/banquito/workspace/webview-ui/node_modules
+    ports:
+      - "3000:3000"  # Para futura interface web
+    environment:
+      - NODE_ENV=development
+      - BANK_MODE=dramatico
+      - TELENOVELA_LEVEL=maximo
+    working_dir: /home/banquito/workspace
+    stdin_open: true
+    tty: true
+    command: bash
+    networks:
+      - banco-network
+
+networks:
+  banco-network:
+    driver: bridge
+    name: "¡Ay-Dios-Mío!"
