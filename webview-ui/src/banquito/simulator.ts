@@ -110,24 +110,46 @@ export class BanquitoSimulator {
     console.log('👀 Watch the bankers work automatically!')
     console.log('🖱️ Click on characters to see their activities!')
     
-    // Load and send the office layout with furniture
+    // CORRECT LOAD ORDER per documentation:
+    // characterSpritesLoaded → floorTilesLoaded → wallTilesLoaded → furnitureAssetsLoaded → layoutLoaded
+    
+    // 1. Send character sprites 
+    this.sendMessage({
+      type: 'characterSpritesLoaded',
+      characters: Array(6).fill({
+        down: Array(7).fill([]),
+        up: Array(7).fill([]),
+        right: Array(7).fill([])
+      })
+    })
+
+    // 2. Send floor tiles
+    this.sendMessage({
+      type: 'floorTilesLoaded',
+      sprites: Array(7).fill([]) // 7 floor patterns
+    })
+
+    // 3. Send wall tiles  
+    this.sendMessage({
+      type: 'wallTilesLoaded',
+      sprites: Array(16).fill([]) // 16 wall bitmask sprites
+    })
+
+    // 4. Send furniture assets
+    this.sendMessage({
+      type: 'furnitureAssetsLoaded',
+      catalog: this.getBasicFurnitureCatalog(),
+      sprites: {}
+    })
+
+    // 5. FINALLY send layout (last in correct order!)
     const layout = await loadBanquitoLayout()
     this.sendMessage({
       type: 'layoutLoaded',
       layout: layout || this.getDefaultLayout()
     })
 
-    // Send character sprites (we'll use default for now)
-    this.sendMessage({
-      type: 'characterSpritesLoaded',
-      characters: Array(4).fill({
-        down: Array(4).fill([]),
-        up: Array(4).fill([]),
-        right: Array(4).fill([])
-      })
-    })
-
-    // Send existing banqueiros
+    // 6. NOW send existing banqueiros (after layout is loaded)
     this.sendMessage({
       type: 'existingAgents',
       agents: BANQUEIROS.map(b => b.id),
@@ -139,22 +161,15 @@ export class BanquitoSimulator {
       }
     })
 
-    // Start activity simulation for each banqueiro (stagger slightly to see them all)
-    BANQUEIROS.forEach((banqueiro, index) => {
-      window.setTimeout(() => this.startBanqueiroActivities(banqueiro), index * 500)
-    })
-
-    // Send settings
+    // 7. Send settings
     this.sendMessage({
       type: 'settingsLoaded',
       soundEnabled: true
     })
 
-    // Send furniture assets (basic set)
-    this.sendMessage({
-      type: 'furnitureAssetsLoaded',
-      catalog: this.getBasicFurnitureCatalog(),
-      sprites: {}
+    // 8. Start activity simulation for each banqueiro (stagger slightly to see them all)
+    BANQUEIROS.forEach((banqueiro, index) => {
+      window.setTimeout(() => this.startBanqueiroActivities(banqueiro), index * 500)
     })
   }
 
