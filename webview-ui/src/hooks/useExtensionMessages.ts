@@ -9,6 +9,7 @@ import { setWallSprites } from '../office/wallTiles.js'
 import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
+import { startBanquitoSimulation, stopBanquitoSimulation } from '../banquito/simulator.js'
 
 export interface SubagentCharacter {
   id: number
@@ -76,8 +77,8 @@ export function useExtensionMessages(
     // Buffer agents from existingAgents until layout is loaded
     let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string }> = []
 
-    const handler = (e: MessageEvent) => {
-      const msg = e.data
+    const handler = (msg: any) => {
+      // In standalone mode, msg is already the data object, not wrapped in e.data
       const os = getOfficeState()
 
       if (msg.type === 'layoutLoaded') {
@@ -343,9 +344,13 @@ export function useExtensionMessages(
         }
       }
     }
-    window.addEventListener('message', handler)
-    vscode.postMessage({ type: 'webviewReady' })
-    return () => window.removeEventListener('message', handler)
+    
+    // Start Banquito simulation instead of listening for VS Code messages
+    startBanquitoSimulation(handler)
+    
+    return () => {
+      stopBanquitoSimulation()
+    }
   }, [getOfficeState])
 
   return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets }
