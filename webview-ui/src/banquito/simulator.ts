@@ -372,13 +372,13 @@ export class BanquitoSimulator {
       
       // Classify assets based on ID patterns (educated guess from typical office assets)
       if (['ASSET_40', 'ASSET_42', 'ASSET_83', 'ASSET_84'].includes(assetId)) {
-        // Desks
+        // Desks - like DESK_SQUARE_SPRITE (32x32, 2x2 tiles)
         category = 'desks'
         isDesk = true
         width = 32
-        height = 16
+        height = 32
         footprintW = 2
-        footprintH = 1
+        footprintH = 2
       } else if (['ASSET_44', 'ASSET_49', 'ASSET_51', 'ASSET_109'].includes(assetId)) {
         // Chairs
         category = 'chairs'
@@ -458,55 +458,213 @@ export class BanquitoSimulator {
   }
 
   private createFurnitureSprite(width: number, height: number, type: string) {
-    console.log(`🎨 Creating sprite for ${type}: ${width}x${height}`)
+    console.log(`🎨 Creating REALISTIC sprite for ${type}: ${width}x${height}`)
     
-    // Create a simple colored sprite for furniture with better colors
-    const sprite = []
-    
-    // More distinctive colors based on asset patterns
-    let baseColor = '#B8860B' // Dark goldenrod - default
-    let borderColor = '#8B4513' // Saddle brown
-    
-    // Classify by ASSET_ ID patterns for better colors
+    // Create realistic sprites based on furniture type (similar to spriteData.ts patterns)
     if (type.includes('ASSET_40') || type.includes('ASSET_42') || type.includes('ASSET_83') || type.includes('ASSET_84')) {
-      // Desks - wood brown
-      baseColor = '#A0522D'
-      borderColor = '#654321'
-    } else if (type.includes('ASSET_44') || type.includes('ASSET_49') || type.includes('ASSET_51')) {
-      // Chairs - darker brown  
-      baseColor = '#8B4513'
-      borderColor = '#5D2F1A'
+      return this.createDeskSprite(width, height)
+    } else if (type.includes('ASSET_44') || type.includes('ASSET_49') || type.includes('ASSET_51') || type.includes('ASSET_109')) {
+      return this.createChairSprite(width, height)
     } else if (type.includes('ASSET_99') || type.includes('ASSET_101') || type.includes('ASSET_27')) {
-      // Plants - green
-      baseColor = '#228B22'
-      borderColor = '#006400'
+      return this.createPlantSprite(width, height)
     } else if (type.includes('ASSET_142') || type.includes('ASSET_143') || type.includes('ASSET_123')) {
-      // Storage - gray
-      baseColor = '#708090'
-      borderColor = '#2F4F4F'
+      return this.createStorageSprite(width, height)
+    } else {
+      return this.createGenericFurnitureSprite(width, height)
     }
+  }
+
+  private createDeskSprite(width: number, height: number) {
+    const _ = '' // transparent
+    const W = '#8B6914' // wood edge (from spriteData.ts)
+    const L = '#A07828' // lighter wood
+    const S = '#B8922E' // surface
+    const D = '#6B4E0A' // dark edge
     
+    const sprite = []
     for (let y = 0; y < height; y++) {
       const row = []
       for (let x = 0; x < width; x++) {
-        // Simple border and fill pattern with shading
-        if (x === 0 || y === 0 || x === width-1 || y === height-1) {
-          row.push(borderColor) // Border
-        } else if (x === 1 || y === 1) {
-          // Highlight edge
-          const r = parseInt(baseColor.slice(1, 3), 16)
-          const g = parseInt(baseColor.slice(3, 5), 16) 
-          const b = parseInt(baseColor.slice(5, 7), 16)
-          const highlight = `#${Math.min(255, r + 30).toString(16).padStart(2, '0')}${Math.min(255, g + 30).toString(16).padStart(2, '0')}${Math.min(255, b + 30).toString(16).padStart(2, '0')}`
-          row.push(highlight)
+        if (y === 0 || y === height - 1) {
+          row.push(x === 0 || x === width - 1 ? _ : W)
+        } else if (x === 0 || x === width - 1) {
+          row.push(W)
+        } else if (y === 1 || y === height - 2) {
+          row.push(L) // highlight
+        } else if (y === Math.floor(height / 2)) {
+          row.push(D) // horizontal divider
         } else {
-          row.push(baseColor)
+          row.push(S) // main surface
         }
       }
       sprite.push(row)
     }
+    console.log(`📐 Created DESK sprite ${width}x${height} - wood brown theme`)
+    return sprite
+  }
+
+  private createChairSprite(width: number, height: number) {
+    const _ = ''
+    const W = '#8B6914' // wood frame
+    const D = '#6B4E0A' // dark frame
+    const B = '#5C3D0A' // back
+    const S = '#A07828' // seat
     
-    console.log(`✅ Created ${width}x${height} sprite for ${type} with color ${baseColor}`)
+    const sprite = []
+    const backHeight = Math.floor(height * 0.6)
+    const seatHeight = Math.floor(height * 0.8)
+    
+    for (let y = 0; y < height; y++) {
+      const row = []
+      for (let x = 0; x < width; x++) {
+        if (y < backHeight) {
+          // Chair back
+          if (x === 0 || x === width - 1 || y === 0) {
+            row.push(D)
+          } else if (x === 1 || x === width - 2 || y === 1) {
+            row.push(W)
+          } else {
+            row.push(B)
+          }
+        } else if (y < seatHeight) {
+          // Chair seat
+          if (x === 0 || x === width - 1) {
+            row.push(D)
+          } else {
+            row.push(S)
+          }
+        } else {
+          // Chair legs
+          if ((x < 3 || x >= width - 3) && y < height - 1) {
+            row.push(W)
+          } else if (y === height - 1 && (x < 3 || x >= width - 3)) {
+            row.push(D)
+          } else {
+            row.push(_)
+          }
+        }
+      }
+      sprite.push(row)
+    }
+    console.log(`🪑 Created CHAIR sprite ${width}x${height} - office chair design`)
+    return sprite
+  }
+
+  private createPlantSprite(width: number, height: number) {
+    const _ = ''
+    const G = '#3D8B37' // green leaves (from spriteData.ts)
+    const D = '#2D6B27' // dark green
+    const T = '#6B4E0A' // trunk/stem
+    const P = '#B85C3A' // pot
+    const R = '#8B4422' // pot rim
+    
+    const sprite = []
+    const potStart = Math.floor(height * 0.65)
+    
+    for (let y = 0; y < height; y++) {
+      const row = []
+      for (let x = 0; x < width; x++) {
+        if (y < height * 0.4) {
+          // Leaves area - create leaf pattern
+          const centerX = Math.floor(width / 2)
+          const leafRadius = Math.min(width / 2.5, height / 3)
+          const dist = Math.sqrt((x - centerX) ** 2 + (y - height * 0.2) ** 2)
+          
+          if (dist < leafRadius) {
+            // Random leaf pattern
+            row.push((x + y) % 3 === 0 ? D : G)
+          } else {
+            row.push(_)
+          }
+        } else if (y < potStart) {
+          // Stem area
+          const centerX = Math.floor(width / 2)
+          if (x >= centerX - 1 && x <= centerX + 1) {
+            row.push(T)
+          } else {
+            row.push(_)
+          }
+        } else {
+          // Pot area
+          if (y === potStart && x > 0 && x < width - 1) {
+            row.push(R) // pot rim
+          } else if ((x === 0 || x === width - 1 || y === height - 1) && y >= potStart) {
+            row.push(R) // pot border
+          } else if (y > potStart) {
+            row.push(P) // pot fill
+          } else {
+            row.push(_)
+          }
+        }
+      }
+      sprite.push(row)
+    }
+    console.log(`🌱 Created PLANT sprite ${width}x${height} - plant in pot design`)
+    return sprite
+  }
+
+  private createStorageSprite(width: number, height: number) {
+    const W = '#8B6914' // wood frame
+    const D = '#6B4E0A' // dark wood
+    const R = '#CC4444' // red books
+    const B = '#4477AA' // blue books
+    const G = '#44AA66' // green books
+    const Y = '#CCAA33' // yellow books
+    
+    const sprite = []
+    const shelfCount = 3
+    const shelfHeight = Math.floor(height / shelfCount)
+    
+    for (let y = 0; y < height; y++) {
+      const row = []
+      for (let x = 0; x < width; x++) {
+        if (x === 0 || x === width - 1 || y === 0 || y === height - 1) {
+          // Frame
+          row.push(W)
+        } else if (y % shelfHeight === 0 && y > 0) {
+          // Shelf separator
+          row.push(W)
+        } else if (x === 1 || x === width - 2) {
+          // Inner frame
+          row.push(D)
+        } else {
+          // Books - create book pattern
+          const bookType = (Math.floor(x / 2) + Math.floor(y / shelfHeight)) % 4
+          switch (bookType) {
+            case 0: row.push(R); break
+            case 1: row.push(B); break
+            case 2: row.push(G); break
+            case 3: row.push(Y); break
+            default: row.push(D)
+          }
+        }
+      }
+      sprite.push(row)
+    }
+    console.log(`📚 Created STORAGE sprite ${width}x${height} - bookshelf with colorful books`)
+    return sprite
+  }
+
+  private createGenericFurnitureSprite(width: number, height: number) {
+    const C = '#8B7355' // generic brown
+    const L = '#A0855B' // light brown
+    const D = '#6B5530' // dark brown
+    
+    const sprite = []
+    for (let y = 0; y < height; y++) {
+      const row = []
+      for (let x = 0; x < width; x++) {
+        if (x === 0 || x === width - 1 || y === 0 || y === height - 1) {
+          row.push(D) // border
+        } else if (x === 1 || y === 1) {
+          row.push(L) // highlight
+        } else {
+          row.push(C) // fill
+        }
+      }
+      sprite.push(row)
+    }
+    console.log(`🏠 Created GENERIC sprite ${width}x${height} - simple furniture design`)
     return sprite
   }
 
